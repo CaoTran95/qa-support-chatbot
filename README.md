@@ -53,6 +53,31 @@ Sau đó mở trình duyệt, gõ: "Tôi đang test flow refund, hãy hướng d
 
 Lần chat đầu Hermes tạo session và trả `session_id`. Adapter phía client giữ id trong bộ nhớ của tab và gửi lại ở các lượt sau (`--resume`). Mỗi tab một session, không trộn giữa các user. Server chỉ cho resume các session do chính nó tạo (lưu trong RAM), nên browser không thể gắn vào session tuỳ ý.
 
+## Deploy: web trên Render, Hermes chạy local qua ngrok
+
+```
+Browser → Web (Render) ──HTTPS──► ngrok ──► bridge (127.0.0.1:8787, máy local) ──► hermes CLI
+```
+
+Khi đặt `HERMES_BRIDGE_URL`, web không spawn CLI mà gọi bridge qua HTTP. Nếu không đặt, web chạy CLI trực tiếp như chế độ local.
+
+**1. Trên máy local (có Hermes):**
+
+```bash
+export BRIDGE_TOKEN=$(openssl rand -hex 24)   # lưu lại giá trị này
+npm run bridge                                # lắng nghe 127.0.0.1:8787
+ngrok http 8787                               # nên dùng domain cố định: ngrok http --url=<domain> 8787
+```
+
+Bridge từ chối khởi động nếu thiếu `BRIDGE_TOKEN`. Mọi request phải có `Authorization: Bearer <BRIDGE_TOKEN>`; giới hạn 4 tiến trình đồng thời và 30 request/phút (`BRIDGE_MAX_CONCURRENT`, `BRIDGE_MAX_PER_MINUTE`).
+
+**2. Trên Render (Web Service):**
+- Build command: `npm install && npm run build`, Start command: `npm start`
+- Environment: `HERMES_BRIDGE_URL=https://<domain>.ngrok-free.app`, `HERMES_BRIDGE_TOKEN=<cùng giá trị BRIDGE_TOKEN>`, `HERMES_TIMEOUT_MS=180000`
+- Token và URL chỉ nằm ở server, browser không thấy.
+
+**Lưu ý:** máy local phải bật cùng bridge và ngrok. Link ngrok free đổi sau mỗi lần restart (phải sửa lại env trên Render). Link ngrok là public: giữ kín `BRIDGE_TOKEN`, và vì Hermes chạy với approvals tự bypass nên không chia sẻ token rộng rãi.
+
 ## Limitations
 
 - **Không streaming token**: `hermes chat -Q` chỉ in kết quả cuối, nên UI hiển thị trạng thái "đang trả lời…" rồi hiện cả câu trả lời.

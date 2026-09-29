@@ -1,117 +1,70 @@
-import { spawn } from "node:child_process";
+import * as local from "./local";
+import { HermesError, type HealthStatus } from "./local";
 
-export const HERMES_PROFILE = process.env.HERMES_PROFILE || "qa-support";
-const HERMES_BIN = process.env.HERMES_BIN || "hermes";
-const DEFAULT_TIMEOUT_MS = Number(process.env.HERMES_TIMEOUT_MS) || 180_000;
-const MAX_OUTPUT_BYTES = 1_000_000;
-const SESSION_ID_RE = /^\d{8}_\d{6}_[0-9a-f]+$/;
+export { HermesError, type HealthStatus };
 
-// Only sessions created by this server may be resumed, so a browser can't
-// attach to arbitrary Hermes sessions (CLI, gateway, other users).
-const g = globalThis as unknown as { __hermesSessions?: Set<string> };
-const knownSessions = (g.__hermesSessions ??= new Set<string>());
+// If HERMES_BRIDGE_URL is set (e.g. web on Render, Hermes on a local machine
+// exposed through ngrok), talk to the bridge over HTTP. Otherwise spawn the
+// Hermes CLI directly.
+const BRIDGE_URL = process.env.HERMES_BRIDGE_URL?.replace(/\/+$/, "");
+const BRIDGE_TOKEN = process.env.HERMES_BRIDGE_TOKEN;
+const BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_TIMEOUT_MS) || 180_000;
 
-export class HermesError extends Error {
-  constructor(
-    message: string,
-    public readonly code: "not_found" | "timeout" | "failed" | "bad_session",
-  ) {
-    super(message);
+type Code = HermesError["code"];
+
+async function bridgeFetch(path: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  try {
+    return await fetch(`${BRIDGE_URL}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        // Skips ngrok's free-tier browser interstitial for API calls.
+        "ngrok-skip-browser-warning": "1",
+        ...(BRIDGE_TOKEN ? { Authorization: `Bearer ${BRIDGE_TOKEN}` } : {}),
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (e) {
+    const timedOut = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+    throw new HermesError(
+      timedOut ? "Hermes bridge timed out" : "Hermes bridge unreachable",
+      timedOut ? "timeout" : "not_found",
+    );
   }
 }
 
-type RunResult = { stdout: string; stderr: string; exitCode: number | null };
-
-function run(args: string[], stdin?: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<RunResult> {
-  return new Promise((resolve, reject) => {
-    // No shell: args are passed as an argv array, user text goes through stdin.
-    const child = spawn(/*turbopackIgnore: true*/ HERMES_BIN, args, {
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, NO_COLOR: "1" },
-    });
-    let stdout = "";
-    let stderr = "";
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill("SIGKILL");
-    }, timeoutMs);
-
-    child.stdout.on("data", (d) => {
-      if (stdout.length < MAX_OUTPUT_BYTES) stdout += d.toString();
-    });
-    child.stderr.on("data", (d) => {
-      if (stderr.length < MAX_OUTPUT_BYTES) stderr += d.toString();
-    });
-    child.on("error", (err: NodeJS.ErrnoException) => {
-      clearTimeout(timer);
-      reject(
-        err.code === "ENOENT"
-          ? new HermesError("Hermes CLI not found in PATH", "not_found")
-          : new HermesError(`Failed to start Hermes: ${err.message}`, "failed"),
-      );
-    });
-    child.on("close", (exitCode) => {
-      clearTimeout(timer);
-      if (timedOut) reject(new HermesError(`Hermes timed out after ${timeoutMs / 1000}s`, "timeout"));
-      else resolve({ stdout, stderr, exitCode });
-    });
-    child.stdin.on("error", () => {});
-    child.stdin.end(stdin ?? "");
-  });
+export async function chat(message: string, sessionId?: string) {
+  if (!BRIDGE_URL) return local.chat(message, sessionId);
+  const res = await bridgeFetch(
+    "/chat",
+    { method: "POST", body: JSON.stringify({ message, sessionId }) },
+    BRIDGE_TIMEOUT_MS + 10_000,
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const code: Code = ["not_found", "timeout", "failed", "bad_session"].includes(data.code)
+      ? data.code
+      : res.status === 401 || res.status === 403
+        ? "not_found"
+        : "failed";
+    throw new HermesError(
+      res.status === 401 || res.status === 403 ? "Hermes bridge rejected credentials" : (data.error ?? `Bridge error (${res.status})`),
+      code,
+    );
+  }
+  return data as { reply: string; sessionId: string | null };
 }
 
-export type HealthStatus = {
-  ok: boolean;
-  cli: boolean;
-  profile: boolean;
-  profileName: string;
-  version?: string;
-  error?: string;
-};
-
 export async function checkHealth(): Promise<HealthStatus> {
-  const base: HealthStatus = { ok: false, cli: false, profile: false, profileName: HERMES_PROFILE };
+  if (!BRIDGE_URL) return local.checkHealth();
+  const base: HealthStatus = { ok: false, cli: false, profile: false, profileName: local.HERMES_PROFILE };
   try {
-    const v = await run(["--version"], undefined, 15_000);
-    if (v.exitCode !== 0) return { ...base, error: "Hermes CLI returned an error" };
-    base.cli = true;
-    base.version = v.stdout.split("\n")[0]?.trim();
-    const list = await run(["profile", "list"], undefined, 15_000);
-    const escaped = HERMES_PROFILE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(`^[\\s◆*]*${escaped}(\\s|$)`, "m");
-    base.profile = list.exitCode === 0 && re.test(list.stdout);
-    if (!base.profile) return { ...base, error: `Profile "${HERMES_PROFILE}" not found` };
-    return { ...base, ok: true };
+    const res = await bridgeFetch("/health", { method: "GET" }, 15_000);
+    if (res.status === 401 || res.status === 403) return { ...base, error: "Hermes bridge rejected credentials" };
+    const data = await res.json();
+    return { ...base, ...data };
   } catch (e) {
     return { ...base, error: e instanceof Error ? e.message : "Unknown error" };
   }
-}
-
-export async function chat(
-  message: string,
-  sessionId?: string,
-): Promise<{ reply: string; sessionId: string | null }> {
-  const args = ["-p", HERMES_PROFILE, "chat", "-Q", "--source", "web", "--query-file", "-"];
-  if (sessionId) {
-    if (!SESSION_ID_RE.test(sessionId) || !knownSessions.has(sessionId)) {
-      throw new HermesError("Unknown session", "bad_session");
-    }
-    args.push("--resume", sessionId);
-  }
-
-  const { stdout, stderr, exitCode } = await run(args, message);
-  if (exitCode !== 0) {
-    const detail = (stderr || stdout).trim().split("\n").slice(-3).join(" ").slice(0, 300);
-    throw new HermesError(`Hermes exited with code ${exitCode}${detail ? `: ${detail}` : ""}`, "failed");
-  }
-
-  // -Q prints the reply on stdout and "session_id: <id>" on stderr (or stdout on some versions).
-  const idRe = /^session_id:\s*(\S+)\s*$/m;
-  const m = stderr.match(idRe) ?? stdout.match(idRe);
-  const newSession = m && SESSION_ID_RE.test(m[1]) ? m[1] : null;
-  const reply = stdout.replace(idRe, "").trim();
-  if (newSession) knownSessions.add(newSession);
-  if (!reply) throw new HermesError("Hermes returned an empty response", "failed");
-  return { reply, sessionId: newSession };
 }
