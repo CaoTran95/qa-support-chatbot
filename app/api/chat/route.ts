@@ -1,4 +1,4 @@
-import { qaSessionIdFor, ensureCookieSid } from "@/lib/admin-auth/session";
+import { qaSessionIdFor, ensureCookieSid, hasInternalSecret } from "@/lib/admin-auth/session";
 import { chat, HermesError, resolveProfile } from "@/lib/hermes/client";
 
 export const runtime = "nodejs";
@@ -24,7 +24,8 @@ export async function POST(req: Request) {
   if (!profile) return Response.json({ error: "Unknown profile" }, { status: 400 });
 
   try {
-    const qaSessionId = qaSessionIdFor(await ensureCookieSid());
+    // Without QA_INTERNAL_SECRET there is no admin session to bind: chat still works, admin lookups answer AUTH_REQUIRED.
+    const qaSessionId = hasInternalSecret() ? qaSessionIdFor(await ensureCookieSid()) : undefined;
     const result = await chat(message, sessionId, qaSessionId, profile);
     return Response.json(result);
   } catch (e) {

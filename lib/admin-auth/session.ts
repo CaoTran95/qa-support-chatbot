@@ -5,9 +5,17 @@ const COOKIE = "qa_sid";
 const COOKIE_MAX_AGE_S = 12 * 60 * 60;
 const SID_RE = /^[0-9a-f]{64}$/;
 
+const MIN_SECRET_CHARS = 32;
+
+/** False when admin auth is not configured on this deployment (chat must keep working without it). */
+export function hasInternalSecret(): boolean {
+  const s = process.env.QA_INTERNAL_SECRET;
+  return !!s && s.length >= MIN_SECRET_CHARS;
+}
+
 export function internalSecret(): string {
   const s = process.env.QA_INTERNAL_SECRET;
-  if (!s || s.length < 32) throw new Error("QA_INTERNAL_SECRET (min 32 chars) is not configured");
+  if (!s || s.length < MIN_SECRET_CHARS) throw new Error("QA_INTERNAL_SECRET (min 32 chars) is not configured");
   return s;
 }
 
