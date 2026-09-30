@@ -27,8 +27,8 @@ export default function AdminLoginPage() {
   const fail = (data: { error?: string; kind?: string }) =>
     setError(data.kind === "unavailable" ? "Không kết nối được Backend. Thử lại sau." : (data.error ?? "Đăng nhập thất bại"));
 
-  const login = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const login = async (e?: React.SyntheticEvent) => {
+    e?.preventDefault();
     setBusy(true);
     setError(null);
     try {
@@ -59,6 +59,11 @@ export default function AdminLoginPage() {
     }
   };
 
+  const submitCommunity = (e: React.FormEvent) => {
+    e.preventDefault();
+    void requestOtp();
+  };
+
   const verifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -78,12 +83,12 @@ export default function AdminLoginPage() {
     <main className="login">
       <h1>Kết nối Admin</h1>
       {step === "credentials" ? (
-        <form onSubmit={login}>
+        <form onSubmit={submitCommunity}>
           <label>Email<input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
           <label>Mật khẩu<input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
-          <button className="btn" disabled={busy}>{busy ? "Đang đăng nhập…" : "Login (Ecommerce)"}</button>
-          <button type="button" className="btn btn-secondary" disabled={busy || !email || !password} onClick={requestOtp}>
-            Gửi OTP để kết nối Community
+          <button className="btn" disabled={busy}>{busy ? "Đang gửi OTP…" : "Đăng nhập Community (gửi OTP)"}</button>
+          <button type="button" className="btn btn-secondary" disabled={busy || !email || !password} onClick={login}>
+            Đăng nhập Ecommerce (không OTP)
           </button>
           <p className="hint">Community yêu cầu mã OTP gửi qua SMS. Mật khẩu chỉ được gửi tới server, không lưu lại.</p>
         </form>
