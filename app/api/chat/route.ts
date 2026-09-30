@@ -1,5 +1,5 @@
 import { qaSessionIdFor, ensureCookieSid } from "@/lib/admin-auth/session";
-import { chat, HermesError } from "@/lib/hermes/client";
+import { chat, HermesError, resolveProfile } from "@/lib/hermes/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ export const maxDuration = 300;
 const MAX_MESSAGE_CHARS = 20_000;
 
 export async function POST(req: Request) {
-  let body: { message?: unknown; sessionId?: unknown };
+  let body: { message?: unknown; sessionId?: unknown; profile?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -20,10 +20,12 @@ export async function POST(req: Request) {
     return Response.json({ error: "Message too long" }, { status: 413 });
   }
   const sessionId = typeof body.sessionId === "string" && body.sessionId ? body.sessionId : undefined;
+  const profile = resolveProfile(body.profile);
+  if (!profile) return Response.json({ error: "Unknown profile" }, { status: 400 });
 
   try {
     const qaSessionId = qaSessionIdFor(await ensureCookieSid());
-    const result = await chat(message, sessionId, qaSessionId);
+    const result = await chat(message, sessionId, qaSessionId, profile);
     return Response.json(result);
   } catch (e) {
     if (e instanceof HermesError) {

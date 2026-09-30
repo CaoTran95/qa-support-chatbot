@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { timingSafeEqual } from "node:crypto";
-import { chat, checkHealth, HermesError } from "../lib/hermes/local";
+import { chat, checkHealth, HermesError, resolveProfile } from "../lib/hermes/local";
 
 const PORT = Number(process.env.BRIDGE_PORT) || 8787;
 const TOKEN = process.env.BRIDGE_TOKEN;
@@ -48,19 +48,23 @@ createServer(async (req, res) => {
   if (!authorized(req.headers.authorization)) return send(401, { error: "Unauthorized" });
 
   try {
-    if (req.method === "GET" && req.url === "/health") {
-      const s = await checkHealth();
+    const url = new URL(req.url ?? "/", "http://bridge");
+
+    if (req.method === "GET" && url.pathname === "/health") {
+      const profile = resolveProfile(url.searchParams.get("profile"));
+      if (!profile) return send(400, { error: "Unknown profile" });
+      const s = await checkHealth(profile);
       return send(s.ok ? 200 : 503, s);
     }
 
-    if (req.method === "POST" && req.url === "/chat") {
+    if (req.method === "POST" && url.pathname === "/chat") {
       const now = Date.now();
       if (now - windowStart > 60_000) [windowStart, windowCount] = [now, 0];
       if (++windowCount > MAX_PER_MINUTE || inFlight >= MAX_CONCURRENT) {
         return send(429, { error: "Too many requests", code: "failed" });
       }
 
-      let body: { message?: unknown; sessionId?: unknown; qaSessionId?: unknown };
+      let body: { message?: unknown; sessionId?: unknown; qaSessionId?: unknown; profile?: unknown };
       try {
         body = JSON.parse(await readBody(req));
       } catch {
@@ -69,11 +73,13 @@ createServer(async (req, res) => {
       const message = typeof body.message === "string" ? body.message.trim() : "";
       if (!message || message.length > 20_000) return send(400, { error: "Invalid message" });
       const sessionId = typeof body.sessionId === "string" && body.sessionId ? body.sessionId : undefined;
+      const profile = resolveProfile(body.profile);
+      if (!profile) return send(400, { error: "Unknown profile" });
 
       inFlight++;
       try {
         const qaSessionId = typeof body.qaSessionId === "string" ? body.qaSessionId : undefined;
-        return send(200, await chat(message, sessionId, qaSessionId));
+        return send(200, await chat(message, sessionId, qaSessionId, profile));
       } finally {
         inFlight--;
       }

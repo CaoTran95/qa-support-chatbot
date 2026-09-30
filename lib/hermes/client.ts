@@ -1,7 +1,7 @@
 import * as local from "./local";
-import { HermesError, type HealthStatus } from "./local";
+import { HermesError, resolveProfile, type HealthStatus } from "./local";
 
-export { HermesError, type HealthStatus };
+export { HermesError, resolveProfile, type HealthStatus };
 
 // If HERMES_BRIDGE_URL is set (e.g. web on Render, Hermes on a local machine
 // exposed through ngrok), talk to the bridge over HTTP. Otherwise spawn the
@@ -34,11 +34,18 @@ async function bridgeFetch(path: string, init: RequestInit, timeoutMs: number): 
   }
 }
 
-export async function chat(message: string, sessionId?: string, qaSessionId?: string) {
-  if (!BRIDGE_URL) return local.chat(message, sessionId, qaSessionId);
+const OUTDATED_BRIDGE = "Hermes bridge does not support bot selection; update the bridge";
+
+export async function chat(
+  message: string,
+  sessionId?: string,
+  qaSessionId?: string,
+  profile: string = local.HERMES_PROFILE,
+) {
+  if (!BRIDGE_URL) return local.chat(message, sessionId, qaSessionId, profile);
   const res = await bridgeFetch(
     "/chat",
-    { method: "POST", body: JSON.stringify({ message, sessionId, qaSessionId }) },
+    { method: "POST", body: JSON.stringify({ message, sessionId, qaSessionId, profile }) },
     BRIDGE_TIMEOUT_MS + 10_000,
   );
   const data = await res.json().catch(() => ({}));
@@ -53,16 +60,23 @@ export async function chat(message: string, sessionId?: string, qaSessionId?: st
       code,
     );
   }
-  return data as { reply: string; sessionId: string | null };
+  // An outdated bridge ignores `profile` and would answer as the default bot: never pass that off as the requested one.
+  if (profile !== local.HERMES_PROFILE && data.profile !== profile) throw new HermesError(OUTDATED_BRIDGE, "failed");
+  return data as { reply: string; sessionId: string | null; profile?: string };
 }
 
-export async function checkHealth(): Promise<HealthStatus> {
-  if (!BRIDGE_URL) return local.checkHealth();
-  const base: HealthStatus = { ok: false, cli: false, profile: false, profileName: local.HERMES_PROFILE };
+export async function checkHealth(profile: string = local.HERMES_PROFILE): Promise<HealthStatus> {
+  if (!BRIDGE_URL) return local.checkHealth(profile);
+  const base: HealthStatus = { ok: false, cli: false, profile: false, profileName: profile };
+  const isDefault = profile === local.HERMES_PROFILE;
   try {
-    const res = await bridgeFetch("/health", { method: "GET" }, 15_000);
+    // The default bot keeps the old, query-less path so an outdated bridge still serves it.
+    const path = isDefault ? "/health" : `/health?profile=${encodeURIComponent(profile)}`;
+    const res = await bridgeFetch(path, { method: "GET" }, 15_000);
     if (res.status === 401 || res.status === 403) return { ...base, error: "Hermes bridge rejected credentials" };
+    if (!isDefault && res.status === 404) return { ...base, error: OUTDATED_BRIDGE };
     const data = await res.json();
+    if (!isDefault && data.profileName !== profile) return { ...base, error: OUTDATED_BRIDGE };
     return { ...base, ...data };
   } catch (e) {
     return { ...base, error: e instanceof Error ? e.message : "Unknown error" };

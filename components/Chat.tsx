@@ -9,18 +9,14 @@ import {
   useLocalRuntime,
   type ChatModelAdapter,
 } from "@assistant-ui/react";
+import type { Bot } from "@/lib/hermes/profiles";
 import { AUTH_REQUIRED_EVENT } from "./AdminAuthBar";
 
 const AUTH_MARKER = "[[ADMIN_AUTH_REQUIRED]]";
 
-const SUGGESTIONS = [
-  "Tôi đang test flow refund, hãy hướng dẫn tôi cần kiểm tra những gì.",
-  "Xin chào, bạn là ai?",
-];
-
 // Adapter between assistant-ui and our /api/chat bridge. The Hermes session id
 // lives in this closure (one per browser tab), so sessions are never shared.
-function createHermesAdapter(): ChatModelAdapter {
+function createHermesAdapter(profile: string): ChatModelAdapter {
   let sessionId: string | null = null;
   return {
     async run({ messages, abortSignal }) {
@@ -33,7 +29,7 @@ function createHermesAdapter(): ChatModelAdapter {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, sessionId }),
+        body: JSON.stringify({ message, sessionId, profile }),
         signal: abortSignal,
       });
       const data = await res.json().catch(() => ({}));
@@ -74,15 +70,15 @@ function AssistantMessage() {
   );
 }
 
-function Thread() {
+function Thread({ bot }: { bot: Bot }) {
   return (
     <ThreadPrimitive.Root className="thread">
       <ThreadPrimitive.Viewport className="viewport">
         <ThreadPrimitive.Empty>
           <div className="empty">
-            <p>Hỏi QA Support bất cứ điều gì về kiểm thử.</p>
+            <p>{bot.emptyText}</p>
             <div className="suggestions">
-              {SUGGESTIONS.map((s) => (
+              {bot.suggestions.map((s) => (
                 <ThreadPrimitive.Suggestion key={s} prompt={s} send className="suggestion">
                   {s}
                 </ThreadPrimitive.Suggestion>
@@ -94,14 +90,14 @@ function Thread() {
           {({ message }) => (message.role === "user" ? <UserMessage /> : <AssistantMessage />)}
         </ThreadPrimitive.Messages>
         <ThreadPrimitive.If running>
-          <div className="typing">QA Support đang trả lời…</div>
+          <div className="typing">{bot.typing}</div>
         </ThreadPrimitive.If>
       </ThreadPrimitive.Viewport>
 
       <ComposerPrimitive.Root className="composer">
         <ComposerPrimitive.Input
           className="composer-input"
-          placeholder="Nhập câu hỏi cho QA Support…"
+          placeholder={bot.placeholder}
           rows={1}
           autoFocus
         />
@@ -116,12 +112,12 @@ function Thread() {
   );
 }
 
-export function Chat() {
-  const adapter = useMemo(() => createHermesAdapter(), []);
+export function Chat({ bot }: { bot: Bot }) {
+  const adapter = useMemo(() => createHermesAdapter(bot.profile), [bot.profile]);
   const runtime = useLocalRuntime(adapter);
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <Thread />
+      <Thread bot={bot} />
     </AssistantRuntimeProvider>
   );
 }

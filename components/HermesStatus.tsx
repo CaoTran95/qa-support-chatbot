@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 
 type State = "checking" | "connected" | "error";
 
-export function HermesStatus() {
+export function HermesStatus({ profile }: { profile: string }) {
   const [state, setState] = useState<State>("checking");
   const [detail, setDetail] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/hermes/health", { cache: "no-store" })
+    fetch(`/api/hermes/health?profile=${encodeURIComponent(profile)}`, { cache: "no-store" })
       .then(async (res) => {
         const data = await res.json();
         if (cancelled) return;
@@ -25,7 +25,7 @@ export function HermesStatus() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [profile]);
 
   const label = state === "checking" ? "Checking…" : state === "connected" ? "Connected" : "Unavailable";
   return (

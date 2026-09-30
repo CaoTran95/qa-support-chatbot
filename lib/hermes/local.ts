@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { findBot } from "./profiles";
 
 export const HERMES_PROFILE = process.env.HERMES_PROFILE || "qa-support";
 const HERMES_BIN = process.env.HERMES_BIN || "hermes";
@@ -8,8 +9,15 @@ const SESSION_ID_RE = /^\d{8}_\d{6}_[0-9a-f]+$/;
 
 // Only sessions created by this server may be resumed, so a browser can't
 // attach to arbitrary Hermes sessions (CLI, gateway, other users).
-const g = globalThis as unknown as { __hermesSessions?: Set<string> };
-const knownSessions = (g.__hermesSessions ??= new Set<string>());
+// A session is bound to the profile that created it: it can't be resumed under another bot.
+const g = globalThis as unknown as { __hermesSessionProfiles?: Map<string, string> };
+const knownSessions = (g.__hermesSessionProfiles ??= new Map<string, string>());
+
+/** `undefined`/empty means the default profile; a name outside the bot allowlist is refused (`null`). */
+export function resolveProfile(input: unknown): string | null {
+  if (input === undefined || input === null || input === "") return HERMES_PROFILE;
+  return findBot(input) ? (input as string) : null;
+}
 
 export class HermesError extends Error {
   constructor(
@@ -75,18 +83,18 @@ export type HealthStatus = {
   error?: string;
 };
 
-export async function checkHealth(): Promise<HealthStatus> {
-  const base: HealthStatus = { ok: false, cli: false, profile: false, profileName: HERMES_PROFILE };
+export async function checkHealth(profileName: string = HERMES_PROFILE): Promise<HealthStatus> {
+  const base: HealthStatus = { ok: false, cli: false, profile: false, profileName };
   try {
     const v = await run(["--version"], undefined, 15_000);
     if (v.exitCode !== 0) return { ...base, error: "Hermes CLI returned an error" };
     base.cli = true;
     base.version = v.stdout.split("\n")[0]?.trim();
     const list = await run(["profile", "list"], undefined, 15_000);
-    const escaped = HERMES_PROFILE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escaped = profileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(`^[\\s◆*]*${escaped}(\\s|$)`, "m");
     base.profile = list.exitCode === 0 && re.test(list.stdout);
-    if (!base.profile) return { ...base, error: `Profile "${HERMES_PROFILE}" not found` };
+    if (!base.profile) return { ...base, error: `Profile "${profileName}" not found` };
     return { ...base, ok: true };
   } catch (e) {
     return { ...base, error: e instanceof Error ? e.message : "Unknown error" };
@@ -99,10 +107,11 @@ export async function chat(
   message: string,
   sessionId?: string,
   qaSessionId?: string,
-): Promise<{ reply: string; sessionId: string | null }> {
-  const args = ["-p", HERMES_PROFILE, "chat", "-Q", "--source", "web", "--query-file", "-"];
+  profile: string = HERMES_PROFILE,
+): Promise<{ reply: string; sessionId: string | null; profile: string }> {
+  const args = ["-p", profile, "chat", "-Q", "--source", "web", "--query-file", "-"];
   if (sessionId) {
-    if (!SESSION_ID_RE.test(sessionId) || !knownSessions.has(sessionId)) {
+    if (!SESSION_ID_RE.test(sessionId) || knownSessions.get(sessionId) !== profile) {
       throw new HermesError("Unknown session", "bad_session");
     }
     args.push("--resume", sessionId);
@@ -122,7 +131,7 @@ export async function chat(
   const m = stderr.match(idRe) ?? stdout.match(idRe);
   const newSession = m && SESSION_ID_RE.test(m[1]) ? m[1] : null;
   const reply = stdout.replace(idRe, "").trim();
-  if (newSession) knownSessions.add(newSession);
+  if (newSession) knownSessions.set(newSession, profile);
   if (!reply) throw new HermesError("Hermes returned an empty response", "failed");
-  return { reply, sessionId: newSession };
+  return { reply, sessionId: newSession, profile };
 }
