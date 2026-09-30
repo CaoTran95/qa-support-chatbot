@@ -9,6 +9,9 @@ import {
   useLocalRuntime,
   type ChatModelAdapter,
 } from "@assistant-ui/react";
+import { AUTH_REQUIRED_EVENT } from "./AdminAuthBar";
+
+const AUTH_MARKER = "[[ADMIN_AUTH_REQUIRED]]";
 
 const SUGGESTIONS = [
   "Tôi đang test flow refund, hãy hướng dẫn tôi cần kiểm tra những gì.",
@@ -36,7 +39,12 @@ function createHermesAdapter(): ChatModelAdapter {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
       if (data.sessionId) sessionId = data.sessionId;
-      return { content: [{ type: "text", text: data.reply }] };
+      // The qa-support skill ends the reply with this marker when the MCP returned AUTH_REQUIRED.
+      const needsAuth =
+        typeof data.reply === "string" && (data.reply.includes(AUTH_MARKER) || /connect admin/i.test(data.reply));
+      const reply = needsAuth ? data.reply.replaceAll(AUTH_MARKER, "").trim() : data.reply;
+      if (needsAuth) window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+      return { content: [{ type: "text", text: reply }] };
     },
   };
 }

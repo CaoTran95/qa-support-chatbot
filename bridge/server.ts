@@ -60,7 +60,7 @@ createServer(async (req, res) => {
         return send(429, { error: "Too many requests", code: "failed" });
       }
 
-      let body: { message?: unknown; sessionId?: unknown };
+      let body: { message?: unknown; sessionId?: unknown; qaSessionId?: unknown };
       try {
         body = JSON.parse(await readBody(req));
       } catch {
@@ -72,7 +72,8 @@ createServer(async (req, res) => {
 
       inFlight++;
       try {
-        return send(200, await chat(message, sessionId));
+        const qaSessionId = typeof body.qaSessionId === "string" ? body.qaSessionId : undefined;
+        return send(200, await chat(message, sessionId, qaSessionId));
       } finally {
         inFlight--;
       }

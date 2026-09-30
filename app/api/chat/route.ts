@@ -1,3 +1,4 @@
+import { qaSessionIdFor, ensureCookieSid } from "@/lib/admin-auth/session";
 import { chat, HermesError } from "@/lib/hermes/client";
 
 export const runtime = "nodejs";
@@ -21,7 +22,8 @@ export async function POST(req: Request) {
   const sessionId = typeof body.sessionId === "string" && body.sessionId ? body.sessionId : undefined;
 
   try {
-    const result = await chat(message, sessionId);
+    const qaSessionId = qaSessionIdFor(await ensureCookieSid());
+    const result = await chat(message, sessionId, qaSessionId);
     return Response.json(result);
   } catch (e) {
     if (e instanceof HermesError) {

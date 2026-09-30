@@ -34,11 +34,11 @@ async function bridgeFetch(path: string, init: RequestInit, timeoutMs: number): 
   }
 }
 
-export async function chat(message: string, sessionId?: string) {
-  if (!BRIDGE_URL) return local.chat(message, sessionId);
+export async function chat(message: string, sessionId?: string, qaSessionId?: string) {
+  if (!BRIDGE_URL) return local.chat(message, sessionId, qaSessionId);
   const res = await bridgeFetch(
     "/chat",
-    { method: "POST", body: JSON.stringify({ message, sessionId }) },
+    { method: "POST", body: JSON.stringify({ message, sessionId, qaSessionId }) },
     BRIDGE_TIMEOUT_MS + 10_000,
   );
   const data = await res.json().catch(() => ({}));

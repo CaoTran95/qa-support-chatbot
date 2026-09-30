@@ -86,3 +86,47 @@ Bridge từ chối khởi động nếu thiếu `BRIDGE_TOKEN`. Mọi request ph
 - Nếu server restart mà tab cũ còn mở, lượt kế tiếp báo lỗi `Unknown session`; reload trang để bắt đầu lại.
 - Chưa có auth, rate limit, database, tool-call rendering, MCP, Bug Coordinator. Chỉ dùng local.
 - Hermes chạy one-shot với approvals tự động bypass (hành vi của `-Q`/non-TTY) theo cấu hình profile.
+
+## Admin auth bridge (tra cứu dữ liệu Ecommerce / Community)
+
+QA Support tra cứu dữ liệu staging qua MCP `bidu-admin-mcp` bằng **chính phiên Admin của QA**. Token nằm server-side, không bao giờ tới browser, Hermes hay LLM.
+
+```
+QA Browser ── chat ──► /api/chat ──► Hermes (env QA_SESSION_ID=<qaSessionId>) ──► bidu-admin-mcp (stdio)
+    │                                                                             │  POST /api/internal/admin-auth/token
+    │ popup /admin-login                                                          │  (HMAC bằng QA_INTERNAL_SECRET)
+    ▼                                                                             ▼
+/api/admin-auth/login ──► Ecommerce login API ──► AdminTokenStore ◄───────── qa-support-web (server)
+/api/admin-auth/community-otp|verify ──► Community login-otp/verify-otp (SMS OTP)
+```
+
+**Routes**
+
+| Route | Việc |
+|---|---|
+| `GET /api/admin-auth/status` | `{connected, ecommerce, community, email}` — chỉ boolean, không token |
+| `POST /api/admin-auth/login` | email+password → Ecommerce login (`POST /api/v1/dev/auth/login`) |
+| `POST /api/admin-auth/community-otp` | bước 1 Community: BE gửi OTP SMS (`/v1/cms/auth/login-otp`) |
+| `POST /api/admin-auth/community-verify` | bước 2: nhập OTP (`/v1/cms/auth/verify-otp`) |
+| `POST /api/admin-auth/logout` | xoá token + cookie |
+| `POST /api/internal/admin-auth/token` | **chỉ MCP** (HMAC), không cho browser |
+| `/admin-login` | popup; thành công → `postMessage ADMIN_AUTH_SUCCESS` → đóng → chat refresh status |
+
+Hai backend dùng hai token riêng (Ecommerce 365 ngày, Community 30 ngày, đều không có refresh) nên Community cần bước OTP riêng. Hết hạn → `connected=false`, login lại.
+
+**Session & token ownership**
+
+- Cookie `qa_sid` (256-bit random, `HttpOnly`, `SameSite=Lax`, `Secure` ở production).
+- `qaSessionId = HMAC-SHA256(QA_INTERNAL_SECRET, "qa-session:" + qa_sid)`: đây là id duy nhất Hermes/MCP biết, nên lộ id này không thể dùng làm cookie.
+- `AdminTokenStore` (`lib/admin-auth/store.ts`): interface `get/set/delete`, hiện là in-memory (mất khi restart, mỗi instance riêng). Thay bằng Redis/DB bằng cách implement interface. Không lưu password; không dùng localStorage/sessionStorage.
+- Password chỉ đi qua server tới backend rồi bỏ; OTP step 1 chỉ giữ `email + session_code` 5 phút.
+
+**Internal auth contract (lựa chọn thiết kế)**: MCP lấy token thật qua `/api/internal/admin-auth/token` với header `x-qa-timestamp` + `x-qa-signature = HMAC(secret, ts.qaSessionId.domain)`, lệch giờ tối đa 60s. Chọn "trả token cho MCP" thay vì proxy vì MCP là tiến trình tin cậy, chạy local và cần gọi hai backend; secret dùng chung đơn giản hơn ký JWT cho prototype. Token không bị log, không trả cho model. Nếu web ở Render còn MCP ở máy local thì token đi qua HTTPS Render→local: dùng HTTPS bắt buộc.
+
+**AUTH_REQUIRED**: khi MCP báo `AUTH_REQUIRED`, QA Support trả lời yêu cầu Connect Admin và kết thúc bằng `[[ADMIN_AUTH_REQUIRED]]`; UI gỡ marker, highlight nút **Connect Admin**.
+
+**Env** (xem `.env.example`): `QA_INTERNAL_SECRET` (≥32 ký tự), `ECOMMERCE_BASE_URL`, `COMMUNITY_BASE_URL`, `BIDU_STAGING_HOSTS`. Chỉ staging: host phải nằm trong `BIDU_STAGING_HOSTS`, các host production đã biết luôn bị từ chối.
+
+**Kết nối Hermes**: mọi request chat truyền `qaSessionId` qua env `QA_SESSION_ID` của tiến trình `hermes` (cả local lẫn qua `bridge/`). `.env` của profile qa-support phải có cùng `QA_INTERNAL_SECRET` và `QA_WEB_INTERNAL_URL` (URL mà MCP gọi được tới web này; web trên Render thì đặt URL Render).
+
+**Troubleshooting**: `503` ở internal route = thiếu `QA_INTERNAL_SECRET`; `502 unavailable` khi login = BE không tới được hoặc host chưa nằm trong `BIDU_STAGING_HOSTS`; bot nói "không có công cụ Admin MCP" = Hermes chưa kịp khởi động MCP (nâng `mcp_single_query_discovery_timeout`, xem README `bidu-admin-mcp`).

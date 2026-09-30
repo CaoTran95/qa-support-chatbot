@@ -22,12 +22,17 @@ export class HermesError extends Error {
 
 type RunResult = { stdout: string; stderr: string; exitCode: number | null };
 
-function run(args: string[], stdin?: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<RunResult> {
+function run(
+  args: string[],
+  stdin?: string,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  extraEnv: Record<string, string> = {},
+): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     // No shell: args are passed as an argv array, user text goes through stdin.
     const child = spawn(/*turbopackIgnore: true*/ HERMES_BIN, args, {
       stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, NO_COLOR: "1" },
+      env: { ...process.env, NO_COLOR: "1", ...extraEnv },
     });
     let stdout = "";
     let stderr = "";
@@ -88,9 +93,12 @@ export async function checkHealth(): Promise<HealthStatus> {
   }
 }
 
+const QA_SESSION_RE = /^[0-9a-f]{64}$/;
+
 export async function chat(
   message: string,
   sessionId?: string,
+  qaSessionId?: string,
 ): Promise<{ reply: string; sessionId: string | null }> {
   const args = ["-p", HERMES_PROFILE, "chat", "-Q", "--source", "web", "--query-file", "-"];
   if (sessionId) {
@@ -100,7 +108,10 @@ export async function chat(
     args.push("--resume", sessionId);
   }
 
-  const { stdout, stderr, exitCode } = await run(args, message);
+  // The Admin MCP (stdio child of Hermes) reads QA_SESSION_ID from its config env.
+  // Only the opaque id is passed; tokens are fetched by the MCP from the web server.
+  const extraEnv = qaSessionId && QA_SESSION_RE.test(qaSessionId) ? { QA_SESSION_ID: qaSessionId } : { QA_SESSION_ID: "" };
+  const { stdout, stderr, exitCode } = await run(args, message, DEFAULT_TIMEOUT_MS, extraEnv);
   if (exitCode !== 0) {
     const detail = (stderr || stdout).trim().split("\n").slice(-3).join(" ").slice(0, 300);
     throw new HermesError(`Hermes exited with code ${exitCode}${detail ? `: ${detail}` : ""}`, "failed");
