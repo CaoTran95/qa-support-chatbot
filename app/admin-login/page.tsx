@@ -59,9 +59,20 @@ export default function AdminLoginPage() {
     }
   };
 
-  const submitCommunity = (e: React.FormEvent) => {
-    e.preventDefault();
-    void requestOtp();
+  const communityLogin = async (e?: React.SyntheticEvent) => {
+    e?.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const { ok, data } = await post("/api/admin-auth/community-login", { email, password });
+      if (!ok) return fail(data);
+      setPassword("");
+      finish();
+    } catch {
+      setError("Lỗi mạng. Thử lại.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const verifyOtp = async (e: React.FormEvent) => {
@@ -83,14 +94,17 @@ export default function AdminLoginPage() {
     <main className="login">
       <h1>Kết nối Admin</h1>
       {step === "credentials" ? (
-        <form onSubmit={submitCommunity}>
+        <form onSubmit={communityLogin}>
           <label>Email<input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
           <label>Mật khẩu<input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
-          <button className="btn" disabled={busy}>{busy ? "Đang gửi OTP…" : "Đăng nhập Community (gửi OTP)"}</button>
-          <button type="button" className="btn btn-secondary" disabled={busy || !email || !password} onClick={login}>
-            Đăng nhập Ecommerce (không OTP)
+          <button className="btn" disabled={busy}>{busy ? "Đang đăng nhập…" : "Đăng nhập (Community)"}</button>
+          <button type="button" className="btn btn-secondary" disabled={busy || !email || !password} onClick={requestOtp}>
+            Đăng nhập bằng OTP (CMS)
           </button>
-          <p className="hint">Community yêu cầu mã OTP gửi qua SMS. Mật khẩu chỉ được gửi tới server, không lưu lại.</p>
+          <button type="button" className="btn btn-secondary" disabled={busy || !email || !password} onClick={login}>
+            Đăng nhập Ecommerce
+          </button>
+          <p className="hint">Staging: đăng nhập Community không cần OTP. Nút OTP dành cho tài khoản CMS bắt buộc mã SMS. Mật khẩu chỉ được gửi tới server, không lưu lại.</p>
         </form>
       ) : (
         <form onSubmit={verifyOtp}>

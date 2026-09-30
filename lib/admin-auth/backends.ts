@@ -62,6 +62,15 @@ export async function ecommerceLogin(email: string, password: string): Promise<D
   return tokenFrom(json);
 }
 
+/** Community login with email + password only (POST /v1/auth/login): no SMS OTP. Used on staging. */
+export async function communityPasswordLogin(email: string, password: string): Promise<DomainToken> {
+  const base = assertStagingBase("COMMUNITY_BASE_URL", process.env.COMMUNITY_BASE_URL);
+  const { status, json } = await post(`${base}/v1/auth/login`, { email, password });
+  if (status >= 500) throw new LoginError("Backend error", "unavailable");
+  if (status !== 200 || json.success !== true) throw new LoginError("Sai email hoặc mật khẩu", "invalid_credentials");
+  return tokenFrom(json);
+}
+
 /** Step 1 of Community login. Returns the session_code needed by step 2. The password is not kept. */
 export async function communityRequestOtp(email: string, password: string): Promise<string> {
   const base = assertStagingBase("COMMUNITY_BASE_URL", process.env.COMMUNITY_BASE_URL);
