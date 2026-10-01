@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type Status = { connected: boolean; ecommerce: boolean; community: boolean; email: string | null };
 
@@ -45,16 +47,27 @@ export function AdminAuthBar() {
 
   const connected = !!status?.connected;
   return (
-    <div className="admin-bar" data-needed={needed && !connected}>
+    <div
+      className={cn(
+        "flex items-center gap-2 text-sm",
+        needed && !connected && "rounded-md outline outline-2 outline-amber-500 px-1.5 py-0.5",
+      )}
+    >
       <span>
         Admin: {connected ? "Connected" : "Not connected"}
         {connected && status?.email ? ` (${status.email})` : ""}
-        {connected ? ` · Ecommerce ${status?.ecommerce ? "✓" : "✗"} · Community ${status?.community ? "✓" : "✗"}` : ""}
+        {connected
+          ? ` · Ecommerce ${status?.ecommerce ? "✓" : "✗"} · Community ${status?.community ? "✓" : "✗"}`
+          : ""}
       </span>
       {connected ? (
-        <button className="btn btn-small" onClick={disconnect}>Disconnect</button>
+        <Button size="sm" variant="outline" onClick={disconnect}>
+          Disconnect
+        </Button>
       ) : (
-        <button className="btn btn-small" onClick={connect}>Connect Admin</button>
+        <Button size="sm" onClick={connect}>
+          Connect Admin
+        </Button>
       )}
     </div>
   );
