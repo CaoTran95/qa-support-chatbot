@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { AUTH_CHANGED_EVENT } from "@/lib/admin-auth/events";
 import type { SeedRole } from "@/lib/admin-auth/domains";
 
 type RoleStatus = { connected: boolean; email: string | null };
@@ -40,15 +41,24 @@ export function SeedAuthBar() {
     };
     window.addEventListener("message", onMsg);
     window.addEventListener(SEED_AUTH_REQUIRED_EVENT, onNeeded);
+    window.addEventListener(AUTH_CHANGED_EVENT, refresh);
     return () => {
       clearTimeout(first);
       window.removeEventListener("message", onMsg);
       window.removeEventListener(SEED_AUTH_REQUIRED_EVENT, onNeeded);
+      window.removeEventListener(AUTH_CHANGED_EVENT, refresh);
     };
   }, [refresh]);
 
   const connect = (role: SeedRole) =>
     window.open(`/seed-login/${role}`, `bidu-seed-login-${role}`, "popup,width=460,height=520");
+
+  // The logout route clears the whole session record, Admin included, so the button says so.
+  const logoutAll = async () => {
+    await fetch("/api/admin-auth/logout", { method: "POST" });
+    await refresh();
+    window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+  };
 
   const connected = (r: SeedRole) => !!status?.seed?.[r]?.connected;
   if (needed.length === 0 && !ROLES.some(connected)) return null;
@@ -71,6 +81,11 @@ export function SeedAuthBar() {
           </Button>
         </span>
       ))}
+      {ROLES.some(connected) && (
+        <Button size="sm" variant="outline" onClick={logoutAll}>
+          Đăng xuất tất cả
+        </Button>
+      )}
     </div>
   );
 }

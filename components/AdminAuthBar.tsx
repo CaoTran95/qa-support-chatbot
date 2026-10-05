@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { AUTH_CHANGED_EVENT } from "@/lib/admin-auth/events";
 
 type Status = { connected: boolean; ecommerce: boolean; community: boolean; email: string | null };
 
@@ -32,10 +33,12 @@ export function AdminAuthBar() {
     const onNeeded = () => setNeeded(true);
     window.addEventListener("message", onMsg);
     window.addEventListener(AUTH_REQUIRED_EVENT, onNeeded);
+    window.addEventListener(AUTH_CHANGED_EVENT, refresh);
     return () => {
       clearTimeout(first);
       window.removeEventListener("message", onMsg);
       window.removeEventListener(AUTH_REQUIRED_EVENT, onNeeded);
+      window.removeEventListener(AUTH_CHANGED_EVENT, refresh);
     };
   }, [refresh]);
 
@@ -43,6 +46,7 @@ export function AdminAuthBar() {
   const disconnect = async () => {
     await fetch("/api/admin-auth/logout", { method: "POST" });
     refresh();
+    window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
   };
 
   const connected = !!status?.connected;
