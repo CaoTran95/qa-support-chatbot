@@ -12,6 +12,8 @@ import { ThreadList } from "@/components/assistant-ui/elements/thread-list.aui";
 import type { Bot } from "@/lib/hermes/profiles";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { AdminAuthBar, AUTH_REQUIRED_EVENT } from "./AdminAuthBar";
+import { SeedAuthBar, SEED_AUTH_REQUIRED_EVENT } from "./SeedAuthBar";
+import { parseSeedMarker } from "@/lib/admin-auth/seed-marker";
 import { BotSwitcher } from "./BotSwitcher";
 import { HermesStatus } from "./HermesStatus";
 
@@ -43,9 +45,11 @@ function createHermesAdapter(profile: string): ChatModelAdapter {
       const needsAuth =
         typeof data.reply === "string" &&
         (data.reply.includes(AUTH_MARKER) || /connect admin/i.test(data.reply));
-      const reply = needsAuth ? data.reply.replaceAll(AUTH_MARKER, "").trim() : data.reply;
+      const adminReply = needsAuth ? data.reply.replaceAll(AUTH_MARKER, "").trim() : data.reply;
       if (needsAuth) window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
-      return { content: [{ type: "text", text: reply }] };
+      const seed = typeof adminReply === "string" ? parseSeedMarker(adminReply) : { reply: adminReply, roles: [] };
+      if (seed.roles.length) window.dispatchEvent(new CustomEvent(SEED_AUTH_REQUIRED_EVENT, { detail: { roles: seed.roles } }));
+      return { content: [{ type: "text", text: seed.reply }] };
     },
   };
 }
@@ -112,6 +116,7 @@ export function Chat({ bot }: { bot: Bot }) {
           <div className="flex flex-col gap-2 border-t border-border p-3">
             <HermesStatus key={bot.profile} profile={bot.profile} />
             <AdminAuthBar />
+            <SeedAuthBar />
           </div>
         </aside>
         <main className="flex min-w-0 flex-1 flex-col">
