@@ -12,18 +12,19 @@ const prev: AdminTokenData = {
 };
 
 describe("mergeAdminLogin", () => {
-  it("same admin: keeps the other admin domain and adds the new token", () => {
-    const m = mergeAdminLogin(prev, { email: "admin@x.vn", domain: "ecommerce", token: tok("A2"), createdAt: 200 });
+  it("same admin community login: replaces community and drops leftover ecommerce", () => {
+    const m = mergeAdminLogin(prev, { email: "admin@x.vn", domain: "community", token: tok("C2"), createdAt: 200 });
     assert.equal(m.createdAt, 200);
-    assert.equal(m.tokens.ecommerce?.accessToken, "A2");
-    assert.equal(m.tokens.community?.accessToken, "C");
+    assert.equal(m.tokens.community?.accessToken, "C2");
+    assert.equal(m.tokens.ecommerce, undefined);
+    assert.equal(m.tokens.ecommerce_buyer?.accessToken, "B");
   });
 
   it("different admin: drops the old admin tokens but keeps buyer and seller", () => {
-    const m = mergeAdminLogin(prev, { email: "other@x.vn", domain: "ecommerce", token: tok("A3"), createdAt: 200 });
+    const m = mergeAdminLogin(prev, { email: "other@x.vn", domain: "community", token: tok("C3"), createdAt: 200 });
     assert.equal(m.email, "other@x.vn");
-    assert.equal(m.tokens.community, undefined);
-    assert.equal(m.tokens.ecommerce?.accessToken, "A3");
+    assert.equal(m.tokens.ecommerce, undefined);
+    assert.equal(m.tokens.community?.accessToken, "C3");
     assert.equal(m.tokens.ecommerce_buyer?.accessToken, "B");
     assert.equal(m.tokens.ecommerce_seller?.accessToken, "S");
     assert.deepEqual(m.seedEmails, { buyer: "b@x.vn", seller: "s@x.vn" });

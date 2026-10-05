@@ -1,4 +1,4 @@
-import { ecommerceLogin, LoginError } from "@/lib/admin-auth/backends";
+import { communityPasswordLogin, LoginError } from "@/lib/admin-auth/backends";
 import { isSeedRole } from "@/lib/admin-auth/domains";
 import { mergeSeedLogin } from "@/lib/admin-auth/merge";
 import { rateLimited } from "@/lib/admin-auth/rate-limit";
@@ -9,8 +9,9 @@ import { adminTokenStore } from "@/lib/admin-auth/store";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Buyer/seller test accounts for the seed tool. Same dev login as the Admin one; the password is used once
+// Buyer/seller test accounts for the seed tool. Community password login only; the password is used once
 // and never stored, logged or returned. Only the token and the email (display) are kept server-side.
+// Storage keys stay ecommerce_buyer / ecommerce_seller for the MCP contract.
 export async function POST(req: Request) {
   let body: { role?: unknown; email?: unknown; password?: unknown };
   try {
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const token = await ecommerceLogin(email, password);
+    const token = await communityPasswordLogin(email, password);
     const prev = await adminTokenStore.get(qaSessionId);
     await adminTokenStore.set(qaSessionId, mergeSeedLogin(prev, { role: body.role, email, token, now: Date.now() }));
     return Response.json({ success: true, ...(await publicStatus(qaSessionId)) });

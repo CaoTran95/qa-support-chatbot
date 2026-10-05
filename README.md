@@ -94,25 +94,28 @@ QA Support tra cứu dữ liệu staging qua MCP `bidu-admin-mcp` bằng **chín
 ```
 QA Browser ── chat ──► /api/chat ──► Hermes (env QA_SESSION_ID=<qaSessionId>) ──► bidu-admin-mcp (stdio)
     │                                                                             │  POST /api/internal/admin-auth/token
-    │ popup /admin-login                                                          │  (HMAC bằng QA_INTERNAL_SECRET)
+    │ popup /admin-login hoặc /seed-login/{buyer|seller}                          │  (HMAC bằng QA_INTERNAL_SECRET)
     ▼                                                                             ▼
-/api/admin-auth/login ──► Ecommerce login API ──► AdminTokenStore ◄───────── qa-support-web (server)
-/api/admin-auth/community-otp|verify ──► Community login-otp/verify-otp (SMS OTP)
+/api/admin-auth/community-login ──► Community /v1/auth/login ──► AdminTokenStore ◄── qa-support-web
+/api/admin-auth/community-otp|verify ──► Community CMS OTP
+/api/seed-auth/login ──► Community /v1/auth/login (lưu slot ecommerce_buyer|seller cho MCP)
 ```
 
 **Routes**
 
 | Route | Việc |
 |---|---|
-| `GET /api/admin-auth/status` | `{connected, ecommerce, community, email}` — chỉ boolean, không token |
-| `POST /api/admin-auth/login` | email+password → Ecommerce login (`POST /api/v1/dev/auth/login`) |
-| `POST /api/admin-auth/community-otp` | bước 1 Community: BE gửi OTP SMS (`/v1/cms/auth/login-otp`) |
-| `POST /api/admin-auth/community-verify` | bước 2: nhập OTP (`/v1/cms/auth/verify-otp`) |
+| `GET /api/admin-auth/status` | `{connected, ecommerce, community, email, seed}` — chỉ boolean, không token |
+| `POST /api/admin-auth/login` | alias Community password login (không còn Ecommerce) |
+| `POST /api/admin-auth/community-login` | email+password → Community (`POST /v1/auth/login`) |
+| `POST /api/admin-auth/community-otp` | bước 1 Community CMS: BE gửi OTP SMS |
+| `POST /api/admin-auth/community-verify` | bước 2: nhập OTP |
+| `POST /api/seed-auth/login` | buyer/seller → Community password login; token lưu `ecommerce_buyer`/`ecommerce_seller` |
 | `POST /api/admin-auth/logout` | xoá token + cookie |
 | `POST /api/internal/admin-auth/token` | **chỉ MCP** (HMAC), không cho browser |
-| `/admin-login` | popup; thành công → `postMessage ADMIN_AUTH_SUCCESS` → đóng → chat refresh status |
+| `/admin-login` | popup Admin; `/seed-login/{role}` popup buyer/seller |
 
-Hai backend dùng hai token riêng (Ecommerce 365 ngày, Community 30 ngày, đều không có refresh) nên Community cần bước OTP riêng. Hết hạn → `connected=false`, login lại.
+Web **chỉ login Community**. Token Community của Admin cũng phục vụ MCP domain `ecommerce` (fallback trong `liveToken`). MCP vẫn gọi Ecommerce API bằng token đó; web không cần `ECOMMERCE_BASE_URL`.
 
 **Session & token ownership**
 
@@ -125,7 +128,7 @@ Hai backend dùng hai token riêng (Ecommerce 365 ngày, Community 30 ngày, đ�
 
 **AUTH_REQUIRED**: khi MCP báo `AUTH_REQUIRED`, QA Support trả lời yêu cầu Connect Admin và kết thúc bằng `[[ADMIN_AUTH_REQUIRED]]`; UI gỡ marker, highlight nút **Connect Admin**.
 
-**Env** (xem `.env.example`): `QA_INTERNAL_SECRET` (≥32 ký tự), `ECOMMERCE_BASE_URL`, `COMMUNITY_BASE_URL`, `BIDU_STAGING_HOSTS`. Chỉ staging: host phải nằm trong `BIDU_STAGING_HOSTS`, các host production đã biết luôn bị từ chối.
+**Env** (xem `.env.example`): `QA_INTERNAL_SECRET` (≥32 ký tự), `COMMUNITY_BASE_URL`, `BIDU_STAGING_HOSTS`. Chỉ staging: host phải nằm trong `BIDU_STAGING_HOSTS`, các host production đã biết luôn bị từ chối. Web không dùng `ECOMMERCE_BASE_URL`.
 
 **Kết nối Hermes**: mọi request chat truyền `qaSessionId` qua env `QA_SESSION_ID` của tiến trình `hermes` (cả local lẫn qua `bridge/`). `.env` của profile qa-support phải có cùng `QA_INTERNAL_SECRET` và `QA_WEB_INTERNAL_URL` (URL mà MCP gọi được tới web này; web trên Render thì đặt URL Render).
 

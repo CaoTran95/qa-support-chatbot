@@ -12,17 +12,20 @@ function split(tokens: AdminTokenData["tokens"] | undefined) {
   return { seed, admin };
 }
 
-/** Admin login (Ecommerce, Community password or Community OTP). Buyer/seller tokens always survive. */
+/** Admin login via Community (password or OTP). Buyer/seller tokens always survive.
+ *  Writing `community` clears any leftover `ecommerce` slot so MCP ecommerce lookups use the Community JWT fallback. */
 export function mergeAdminLogin(
   prev: AdminTokenData | undefined,
   p: { email: string; domain: "ecommerce" | "community"; token: DomainToken; createdAt: number },
 ): AdminTokenData {
   const { seed, admin } = split(prev?.tokens);
   const sameAdmin = !!prev && prev.email === p.email;
+  const kept: AdminTokenData["tokens"] = sameAdmin ? { ...admin } : {};
+  if (p.domain === "community") delete kept.ecommerce;
   return {
     email: p.email,
     createdAt: p.createdAt,
-    tokens: { ...(sameAdmin ? admin : {}), ...seed, [p.domain]: p.token },
+    tokens: { ...kept, ...seed, [p.domain]: p.token },
     ...(prev?.seedEmails ? { seedEmails: prev.seedEmails } : {}),
   };
 }

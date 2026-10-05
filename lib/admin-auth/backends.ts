@@ -2,10 +2,10 @@ import { randomBytes } from "node:crypto";
 import { assertStagingBase } from "./guardrail";
 import type { DomainToken } from "./store";
 
-// Contracts below come from the backend source:
-//  - Ecommerce: POST /api/v1/dev/auth/login {email,password} -> {success,data:<jwt>}  (routes/auth.ts, controllers/api/auth.ts)
-//  - Community: POST /v1/cms/auth/login-otp {email,password,session_code} sends an SMS OTP,
-//               POST /v1/cms/auth/verify-otp {email,session_code,code} -> {success,data:<jwt>} (routes/cms/auth.js)
+// Contracts below come from the backend source (Community only on this web):
+//  - Community password: POST /v1/auth/login {email,password} -> {success,data:<jwt>}
+//  - Community OTP: POST /v1/cms/auth/login-otp {email,password,session_code} sends an SMS OTP,
+//                   POST /v1/cms/auth/verify-otp {email,session_code,code} -> {success,data:<jwt>} (routes/cms/auth.js)
 
 export class LoginError extends Error {
   constructor(
@@ -50,16 +50,6 @@ function tokenFrom(json: Record<string, unknown>): DomainToken {
     throw new LoginError("Unexpected login response", "unavailable");
   }
   return { accessToken: jwt, expiresAt: jwtExpiryMs(jwt) };
-}
-
-export async function ecommerceLogin(email: string, password: string): Promise<DomainToken> {
-  const base = assertStagingBase("ECOMMERCE_BASE_URL", process.env.ECOMMERCE_BASE_URL);
-  const { status, json } = await post(`${base}/api/v1/dev/auth/login`, { email, password });
-  if (status === 404 || status === 403 || status === 401 || status === 400) {
-    throw new LoginError("Sai email hoặc mật khẩu", "invalid_credentials");
-  }
-  if (status >= 500) throw new LoginError("Backend error", "unavailable");
-  return tokenFrom(json);
 }
 
 /** Community login with email + password only (POST /v1/auth/login): no SMS OTP. Used on staging. */

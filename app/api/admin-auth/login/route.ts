@@ -1,4 +1,4 @@
-import { ecommerceLogin, LoginError } from "@/lib/admin-auth/backends";
+import { communityPasswordLogin, LoginError } from "@/lib/admin-auth/backends";
 import { mergeAdminLogin } from "@/lib/admin-auth/merge";
 import { rateLimited } from "@/lib/admin-auth/rate-limit";
 import { ensureCookieSid, qaSessionIdFor } from "@/lib/admin-auth/session";
@@ -8,6 +8,7 @@ import { adminTokenStore } from "@/lib/admin-auth/store";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** Alias of community-login: all web Admin auth is Community-only (no Ecommerce login). */
 export async function POST(req: Request) {
   let body: { email?: unknown; password?: unknown };
   try {
@@ -27,9 +28,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    const token = await ecommerceLogin(email, password);
+    const token = await communityPasswordLogin(email, password);
     const prev = await adminTokenStore.get(qaSessionId);
-    await adminTokenStore.set(qaSessionId, mergeAdminLogin(prev, { email, domain: "ecommerce", token, createdAt: Date.now() }));
+    await adminTokenStore.set(qaSessionId, mergeAdminLogin(prev, { email, domain: "community", token, createdAt: prev?.createdAt ?? Date.now() }));
     return Response.json({ success: true, ...(await publicStatus(qaSessionId)) });
   } catch (e) {
     if (e instanceof LoginError) {

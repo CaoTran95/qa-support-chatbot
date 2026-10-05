@@ -15,7 +15,6 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<Step>("credentials");
-  const [ecommerceOk, setEcommerceOk] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,23 +25,6 @@ export default function AdminLoginPage() {
 
   const fail = (data: { error?: string; kind?: string }) =>
     setError(data.kind === "unavailable" ? "Không kết nối được Backend. Thử lại sau." : (data.error ?? "Đăng nhập thất bại"));
-
-  const login = async (e?: React.SyntheticEvent) => {
-    e?.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const { ok, data } = await post("/api/admin-auth/login", { email, password });
-      if (!ok) return fail(data);
-      setEcommerceOk(true);
-      setPassword("");
-      finish();
-    } catch {
-      setError("Lỗi mạng. Thử lại.");
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const requestOtp = async () => {
     setBusy(true);
@@ -101,10 +83,7 @@ export default function AdminLoginPage() {
           <button type="button" className="btn btn-secondary" disabled={busy || !email || !password} onClick={requestOtp}>
             Đăng nhập bằng OTP (CMS)
           </button>
-          <button type="button" className="btn btn-secondary" disabled={busy || !email || !password} onClick={login}>
-            Đăng nhập Ecommerce
-          </button>
-          <p className="hint">Staging: đăng nhập Community không cần OTP. Nút OTP dành cho tài khoản CMS bắt buộc mã SMS. Mật khẩu chỉ được gửi tới server, không lưu lại.</p>
+          <p className="hint">Toàn bộ đăng nhập qua Community. Staging thường không cần OTP; nút OTP dành cho tài khoản CMS bắt buộc mã SMS. Mật khẩu chỉ được gửi tới server, không lưu lại.</p>
         </form>
       ) : (
         <form onSubmit={verifyOtp}>
@@ -113,7 +92,6 @@ export default function AdminLoginPage() {
           <button className="btn" disabled={busy}>{busy ? "Đang xác thực…" : "Xác nhận OTP"}</button>
         </form>
       )}
-      {ecommerceOk && <p>Đã kết nối.</p>}
       {error && <div className="error-box" role="alert">{error}</div>}
     </main>
   );

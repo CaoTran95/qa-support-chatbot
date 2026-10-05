@@ -61,7 +61,9 @@ export function AdminAuthBar() {
         Admin: {connected ? "Connected" : "Not connected"}
         {connected && status?.email ? ` (${status.email})` : ""}
         {connected
-          ? ` · Ecommerce ${status?.ecommerce ? "✓" : "✗"} · Community ${status?.community ? "✓" : "✗"}`
+          ? status?.community
+            ? " · Community ✓"
+            : ""
           : ""}
       </span>
       {connected ? (
