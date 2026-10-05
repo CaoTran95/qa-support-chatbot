@@ -1,5 +1,6 @@
 import { verifyInternal } from "@/lib/admin-auth/internal";
-import { liveToken, type Domain } from "@/lib/admin-auth/status";
+import { parseTokenDomain } from "@/lib/admin-auth/domains";
+import { liveToken } from "@/lib/admin-auth/status";
 import { adminTokenStore } from "@/lib/admin-auth/store";
 
 export const runtime = "nodejs";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { qaSessionId?: unknown; domain?: unknown };
   const qaSessionId = typeof body.qaSessionId === "string" ? body.qaSessionId : "";
-  const domain = body.domain === "ecommerce" || body.domain === "community" ? (body.domain as Domain) : null;
+  const domain = parseTokenDomain(body.domain);
   if (!/^[0-9a-f]{64}$/.test(qaSessionId) || !domain) return Response.json({ error: "Bad request" }, { status: 400 });
 
   let ok = false;
