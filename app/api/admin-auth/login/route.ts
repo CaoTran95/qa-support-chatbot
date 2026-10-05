@@ -1,4 +1,5 @@
 import { ecommerceLogin, LoginError } from "@/lib/admin-auth/backends";
+import { mergeAdminLogin } from "@/lib/admin-auth/merge";
 import { rateLimited } from "@/lib/admin-auth/rate-limit";
 import { ensureCookieSid, qaSessionIdFor } from "@/lib/admin-auth/session";
 import { publicStatus } from "@/lib/admin-auth/status";
@@ -28,11 +29,7 @@ export async function POST(req: Request) {
   try {
     const token = await ecommerceLogin(email, password);
     const prev = await adminTokenStore.get(qaSessionId);
-    await adminTokenStore.set(qaSessionId, {
-      email,
-      createdAt: Date.now(),
-      tokens: { ...(prev && prev.email === email ? prev.tokens : {}), ecommerce: token },
-    });
+    await adminTokenStore.set(qaSessionId, mergeAdminLogin(prev, { email, domain: "ecommerce", token, createdAt: Date.now() }));
     return Response.json({ success: true, ...(await publicStatus(qaSessionId)) });
   } catch (e) {
     if (e instanceof LoginError) {

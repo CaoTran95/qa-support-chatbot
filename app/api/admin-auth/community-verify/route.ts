@@ -1,5 +1,6 @@
 import { communityVerifyOtp, LoginError } from "@/lib/admin-auth/backends";
 import { clearPending, takePending } from "@/lib/admin-auth/pending-otp";
+import { mergeAdminLogin } from "@/lib/admin-auth/merge";
 import { rateLimited } from "@/lib/admin-auth/rate-limit";
 import { qaSessionIdFor, readCookieSid } from "@/lib/admin-auth/session";
 import { publicStatus } from "@/lib/admin-auth/status";
@@ -25,11 +26,10 @@ export async function POST(req: Request) {
     const token = await communityVerifyOtp(pending.email, pending.sessionCode, code);
     clearPending(qaSessionId);
     const prev = await adminTokenStore.get(qaSessionId);
-    await adminTokenStore.set(qaSessionId, {
-      email: pending.email,
-      createdAt: prev?.createdAt ?? Date.now(),
-      tokens: { ...(prev && prev.email === pending.email ? prev.tokens : {}), community: token },
-    });
+    await adminTokenStore.set(
+      qaSessionId,
+      mergeAdminLogin(prev, { email: pending.email, domain: "community", token, createdAt: prev?.createdAt ?? Date.now() }),
+    );
     return Response.json({ success: true, ...(await publicStatus(qaSessionId)) });
   } catch (e) {
     if (e instanceof LoginError) {

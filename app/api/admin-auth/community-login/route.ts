@@ -1,4 +1,5 @@
 import { communityPasswordLogin, LoginError } from "@/lib/admin-auth/backends";
+import { mergeAdminLogin } from "@/lib/admin-auth/merge";
 import { rateLimited } from "@/lib/admin-auth/rate-limit";
 import { ensureCookieSid, qaSessionIdFor } from "@/lib/admin-auth/session";
 import { publicStatus } from "@/lib/admin-auth/status";
@@ -28,11 +29,10 @@ export async function POST(req: Request) {
   try {
     const token = await communityPasswordLogin(email, password);
     const prev = await adminTokenStore.get(qaSessionId);
-    await adminTokenStore.set(qaSessionId, {
-      email,
-      createdAt: prev?.createdAt ?? Date.now(),
-      tokens: { ...(prev && prev.email === email ? prev.tokens : {}), community: token },
-    });
+    await adminTokenStore.set(
+      qaSessionId,
+      mergeAdminLogin(prev, { email, domain: "community", token, createdAt: prev?.createdAt ?? Date.now() }),
+    );
     return Response.json({ success: true, ...(await publicStatus(qaSessionId)) });
   } catch (e) {
     if (e instanceof LoginError) {
