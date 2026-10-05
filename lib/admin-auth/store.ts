@@ -2,6 +2,8 @@
 // The in-memory implementation is a prototype: swap it for Redis/DB by
 // implementing AdminTokenStore and changing createStore() below.
 
+import type { Domain, SeedRole } from "./domains";
+
 export type DomainToken = {
   accessToken: string;
   /** epoch ms; undefined = backend did not report an expiry */
@@ -10,10 +12,12 @@ export type DomainToken = {
 };
 
 export type AdminTokenData = {
-  /** Display only (never a secret). */
+  /** Admin email, display only (never a secret). Empty when only test-account logins exist. */
   email: string;
   createdAt: number;
-  tokens: Partial<Record<"ecommerce" | "community", DomainToken>>;
+  tokens: Partial<Record<Domain, DomainToken>>;
+  /** Display only: the test accounts behind the buyer/seller tokens. */
+  seedEmails?: Partial<Record<SeedRole, string>>;
 };
 
 export interface AdminTokenStore {

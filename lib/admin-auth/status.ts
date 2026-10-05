@@ -1,6 +1,7 @@
 import { adminTokenStore, type AdminTokenData, type DomainToken } from "./store";
 
-export type Domain = "ecommerce" | "community";
+import type { Domain } from "./domains";
+export type { Domain };
 
 const isLive = (t: DomainToken | undefined): t is DomainToken => !!t && !(t.expiresAt && t.expiresAt <= Date.now());
 

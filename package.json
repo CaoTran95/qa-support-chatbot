@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "bridge": "tsx bridge/server.ts"
+    "bridge": "tsx bridge/server.ts",
+    "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.22",
