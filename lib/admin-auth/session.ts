@@ -2,7 +2,8 @@ import { createHmac, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 
 const COOKIE = "qa_sid";
-const COOKIE_MAX_AGE_S = 12 * 60 * 60;
+/** Align with Community/Ecommerce JWT lifetime (~1 year); renew on each ensureCookieSid. */
+const COOKIE_MAX_AGE_S = 365 * 24 * 60 * 60;
 const SID_RE = /^[0-9a-f]{64}$/;
 
 const MIN_SECRET_CHARS = 32;
@@ -32,11 +33,10 @@ export async function readCookieSid(): Promise<string | undefined> {
   return v && SID_RE.test(v) ? v : undefined;
 }
 
-/** Returns the existing browser session id or creates (and sets) a new one. */
+/** Returns the existing browser session id or creates (and sets) a new one. Renews maxAge when present. */
 export async function ensureCookieSid(): Promise<string> {
   const existing = await readCookieSid();
-  if (existing) return existing;
-  const sid = randomBytes(32).toString("hex");
+  const sid = existing ?? randomBytes(32).toString("hex");
   (await cookies()).set(COOKIE, sid, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

@@ -3,8 +3,8 @@ import { clearPending, takePending } from "@/lib/admin-auth/pending-otp";
 import { mergeAdminLogin } from "@/lib/admin-auth/merge";
 import { rateLimited } from "@/lib/admin-auth/rate-limit";
 import { qaSessionIdFor, readCookieSid } from "@/lib/admin-auth/session";
+import { loadAuthSession, saveAuthSession } from "@/lib/admin-auth/session-persist";
 import { publicStatus } from "@/lib/admin-auth/status";
-import { adminTokenStore } from "@/lib/admin-auth/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,8 +25,8 @@ export async function POST(req: Request) {
   try {
     const token = await communityVerifyOtp(pending.email, pending.sessionCode, code);
     clearPending(qaSessionId);
-    const prev = await adminTokenStore.get(qaSessionId);
-    await adminTokenStore.set(
+    const prev = await loadAuthSession(qaSessionId);
+    await saveAuthSession(
       qaSessionId,
       mergeAdminLogin(prev, { email: pending.email, domain: "community", token, createdAt: prev?.createdAt ?? Date.now() }),
     );

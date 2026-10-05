@@ -121,7 +121,9 @@ Web **chỉ login Community**. Token Community của Admin cũng phục vụ MCP
 
 - Cookie `qa_sid` (256-bit random, `HttpOnly`, `SameSite=Lax`, `Secure` ở production).
 - `qaSessionId = HMAC-SHA256(QA_INTERNAL_SECRET, "qa-session:" + qa_sid)`: đây là id duy nhất Hermes/MCP biết, nên lộ id này không thể dùng làm cookie.
-- `AdminTokenStore` (`lib/admin-auth/store.ts`): interface `get/set/delete`, hiện là in-memory (mất khi restart, mỗi instance riêng). Thay bằng Redis/DB bằng cách implement interface. Không lưu password; không dùng localStorage/sessionStorage.
+- Cookie `qa_sid` (id phiên) + cookie JWT đã mã hóa (`qa_tok_*`, giống Bidu cookie `bidu`): token nằm trên browser (HttpOnly), không đưa vào JS/LLM.
+- Mỗi request chat/status: web đọc cookie → đồng bộ cache server theo `qaSessionId` để MCP (stdio, không có cookie browser) vẫn lấy token qua HMAC.
+- `AdminTokenStore` chỉ là cache MCP (memory/file); nguồn đúng là cookie. Disconnect xoá cookie + cache.
 - Password chỉ đi qua server tới backend rồi bỏ; OTP step 1 chỉ giữ `email + session_code` 5 phút.
 
 **Internal auth contract (lựa chọn thiết kế)**: MCP lấy token thật qua `/api/internal/admin-auth/token` với header `x-qa-timestamp` + `x-qa-signature = HMAC(secret, ts.qaSessionId.domain)`, lệch giờ tối đa 60s. Chọn "trả token cho MCP" thay vì proxy vì MCP là tiến trình tin cậy, chạy local và cần gọi hai backend; secret dùng chung đơn giản hơn ký JWT cho prototype. Token không bị log, không trả cho model. Nếu web ở Render còn MCP ở máy local thì token đi qua HTTPS Render→local: dùng HTTPS bắt buộc.

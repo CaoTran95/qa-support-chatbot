@@ -1,6 +1,7 @@
-import { adminTokenStore, type AdminTokenData, type DomainToken } from "./store";
-
+import { loadAuthSession } from "./session-persist";
 import { seedDomain, type Domain, type SeedRole } from "./domains";
+import type { AdminTokenData, DomainToken } from "./store";
+
 export type { Domain };
 
 const isLive = (t: DomainToken | undefined): t is DomainToken => !!t && !(t.expiresAt && t.expiresAt <= Date.now());
@@ -8,8 +9,7 @@ const isLive = (t: DomainToken | undefined): t is DomainToken => !!t && !(t.expi
 export function liveToken(data: AdminTokenData | undefined, domain: Domain): DomainToken | undefined {
   const own = data?.tokens[domain];
   if (isLive(own)) return own;
-  // An Admin account has one JWT for both backends (per the operator), so a Community login (SMS OTP) also
-  // serves the Ecommerce tools. If the Ecommerce backend rejects it, the MCP gets a 401 and reports AUTH_REQUIRED.
+  // Community login also serves Ecommerce Admin tools (shared JWT).
   const shared = domain === "ecommerce" ? data?.tokens.community : undefined;
   return isLive(shared) ? shared : undefined;
 }
@@ -21,7 +21,7 @@ const seedState = (data: AdminTokenData | undefined, role: SeedRole) => {
 
 /** Browser-safe view: booleans and display data only, never a token. */
 export async function publicStatus(qaSessionId: string | undefined) {
-  const data = qaSessionId ? await adminTokenStore.get(qaSessionId) : undefined;
+  const data = await loadAuthSession(qaSessionId);
   const ecommerce = !!liveToken(data, "ecommerce");
   const community = !!liveToken(data, "community");
   return {

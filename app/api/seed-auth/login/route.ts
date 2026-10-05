@@ -3,15 +3,14 @@ import { isSeedRole } from "@/lib/admin-auth/domains";
 import { mergeSeedLogin } from "@/lib/admin-auth/merge";
 import { rateLimited } from "@/lib/admin-auth/rate-limit";
 import { ensureCookieSid, qaSessionIdFor } from "@/lib/admin-auth/session";
+import { loadAuthSession, saveAuthSession } from "@/lib/admin-auth/session-persist";
 import { publicStatus } from "@/lib/admin-auth/status";
-import { adminTokenStore } from "@/lib/admin-auth/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Buyer/seller test accounts for the seed tool. Community password login only; the password is used once
-// and never stored, logged or returned. Only the token and the email (display) are kept server-side.
-// Storage keys stay ecommerce_buyer / ecommerce_seller for the MCP contract.
+// and never stored, logged or returned. JWTs go into HttpOnly cookies (Bidu-style) plus a server cache for MCP.
 export async function POST(req: Request) {
   let body: { role?: unknown; email?: unknown; password?: unknown };
   try {
@@ -35,8 +34,8 @@ export async function POST(req: Request) {
 
   try {
     const token = await communityPasswordLogin(email, password);
-    const prev = await adminTokenStore.get(qaSessionId);
-    await adminTokenStore.set(qaSessionId, mergeSeedLogin(prev, { role: body.role, email, token, now: Date.now() }));
+    const prev = await loadAuthSession(qaSessionId);
+    await saveAuthSession(qaSessionId, mergeSeedLogin(prev, { role: body.role, email, token, now: Date.now() }));
     return Response.json({ success: true, ...(await publicStatus(qaSessionId)) });
   } catch (e) {
     if (e instanceof LoginError) {

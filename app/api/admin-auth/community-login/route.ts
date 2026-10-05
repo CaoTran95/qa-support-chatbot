@@ -2,8 +2,8 @@ import { communityPasswordLogin, LoginError } from "@/lib/admin-auth/backends";
 import { mergeAdminLogin } from "@/lib/admin-auth/merge";
 import { rateLimited } from "@/lib/admin-auth/rate-limit";
 import { ensureCookieSid, qaSessionIdFor } from "@/lib/admin-auth/session";
+import { loadAuthSession, saveAuthSession } from "@/lib/admin-auth/session-persist";
 import { publicStatus } from "@/lib/admin-auth/status";
-import { adminTokenStore } from "@/lib/admin-auth/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,8 +28,8 @@ export async function POST(req: Request) {
 
   try {
     const token = await communityPasswordLogin(email, password);
-    const prev = await adminTokenStore.get(qaSessionId);
-    await adminTokenStore.set(
+    const prev = await loadAuthSession(qaSessionId);
+    await saveAuthSession(
       qaSessionId,
       mergeAdminLogin(prev, { email, domain: "community", token, createdAt: prev?.createdAt ?? Date.now() }),
     );

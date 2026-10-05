@@ -1,4 +1,5 @@
 import { qaSessionIdFor, ensureCookieSid, hasInternalSecret } from "@/lib/admin-auth/session";
+import { loadAuthSession } from "@/lib/admin-auth/session-persist";
 import { chat, HermesError, resolveProfile } from "@/lib/hermes/client";
 
 export const runtime = "nodejs";
@@ -26,6 +27,8 @@ export async function POST(req: Request) {
   try {
     // Without QA_INTERNAL_SECRET there is no admin session to bind: chat still works, admin lookups answer AUTH_REQUIRED.
     const qaSessionId = hasInternalSecret() ? qaSessionIdFor(await ensureCookieSid()) : undefined;
+    // Sync encrypted browser cookies → server cache so MCP can fetch tokens mid-turn.
+    if (qaSessionId) await loadAuthSession(qaSessionId);
     const result = await chat(message, sessionId, qaSessionId, profile);
     return Response.json(result);
   } catch (e) {
