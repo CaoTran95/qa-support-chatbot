@@ -26,6 +26,17 @@ export const BOTS: Bot[] = [
     typing: "VTP Reship đang trả lời…",
     suggestions: ["Bạn giúp được gì cho đơn bị Viettel Post huỷ?", "Quy trình đẩy lại đơn VTP bị huỷ gồm những bước nào?"],
   },
+  {
+    profile: "reopen-dispute",
+    label: "Reopen Dispute",
+    emptyText: "Đưa mã khiếu nại (RF_...) bị Admin từ chối nhầm. Bot điều tra, giải thích và chỉ mở lại khi bạn duyệt.",
+    placeholder: "Nhập mã khiếu nại hoặc câu hỏi cho Reopen Dispute…",
+    typing: "Reopen Dispute đang trả lời…",
+    suggestions: [
+      "Bạn giúp được gì khi Admin bấm nhầm từ chối khiếu nại?",
+      "Quy trình mở lại quyết định khiếu nại gồm những bước nào?",
+    ],
+  },
 ];
 
 export const DEFAULT_BOT = BOTS[0];
