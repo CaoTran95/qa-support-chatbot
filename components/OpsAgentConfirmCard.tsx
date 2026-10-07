@@ -153,10 +153,10 @@ export function OpsAgentConfirmCard() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button size="sm" variant="secondary" className="w-full justify-center font-medium" />
+          <Button size="sm" variant="outline" className="w-full justify-center text-xs font-medium" />
         }
       >
-        Mở thẻ xác nhận
+        Mở thẻ thủ công
       </DialogTrigger>
 
       <DialogContent

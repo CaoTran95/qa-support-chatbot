@@ -83,6 +83,8 @@ export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart;
  */
 export type ThreadComponents = {
   AssistantMessage?: ComponentType | undefined;
+  /** Override assistant plain-text / markdown part (e.g. Ops Agent inline confirm card). */
+  AssistantText?: ComponentType | undefined;
   Welcome?: ComponentType | undefined;
   EmptySuggestions?: ComponentType | undefined;
   ThinkingIndicator?: ComponentType | undefined;
@@ -475,6 +477,7 @@ const AssistantMessage: FC = () => {
     ReasoningGroup,
     TaskGroup: TaskGroupComponent,
     ThinkingIndicator: ThinkingIndicatorComponent,
+    AssistantText: AssistantTextComponent,
   } = useContext(ThreadComponentsContext);
   const groupBy = TaskGroupComponent ? taskAwareGroupBy : messageGroupBy;
 
@@ -531,7 +534,11 @@ const AssistantMessage: FC = () => {
                 );
               }
               case "text":
-                return <MarkdownText />;
+                return AssistantTextComponent ? (
+                  <AssistantTextComponent />
+                ) : (
+                  <MarkdownText />
+                );
               case "reasoning":
                 return <Reasoning {...part} />;
               case "tool-call":

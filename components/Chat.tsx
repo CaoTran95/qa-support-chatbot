@@ -14,9 +14,11 @@ import { ThinkingIndicator } from "./ThinkingIndicator";
 import { AdminAuthBar, AUTH_REQUIRED_EVENT } from "./AdminAuthBar";
 import { SeedAuthBar, SEED_AUTH_REQUIRED_EVENT } from "./SeedAuthBar";
 import { OpsAgentConfirmCard } from "./OpsAgentConfirmCard";
+import { OpsAgentAssistantText } from "./OpsAgentAssistantText";
 import { parseSeedMarker } from "@/lib/admin-auth/seed-marker";
 import { BotSwitcher } from "./BotSwitcher";
 import { HermesStatus } from "./HermesStatus";
+import { extractPreviewToken, stripPreviewMarkers } from "@/lib/ops-agent/preview-token";
 
 const AUTH_MARKER = "[[ADMIN_AUTH_REQUIRED]]";
 
@@ -50,7 +52,16 @@ function createHermesAdapter(profile: string): ChatModelAdapter {
       if (needsAuth) window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
       const seed = typeof adminReply === "string" ? parseSeedMarker(adminReply) : { reply: adminReply, roles: [] };
       if (seed.roles.length) window.dispatchEvent(new CustomEvent(SEED_AUTH_REQUIRED_EVENT, { detail: { roles: seed.roles } }));
-      return { content: [{ type: "text", text: seed.reply }] };
+      let reply = typeof seed.reply === "string" ? seed.reply : "";
+      // Keep human "Mã xem trước" for the inline card parser; drop machine-only marker from display.
+      if (profile === "ops-agent") {
+        const token = extractPreviewToken(reply);
+        reply = stripPreviewMarkers(reply);
+        if (token && !/Mã xem trước:/i.test(reply)) {
+          reply = `${reply}\n\nMã xem trước: ${token}`.trim();
+        }
+      }
+      return { content: [{ type: "text", text: reply }] };
     },
   };
 }
@@ -124,7 +135,7 @@ export function Chat({ bot }: { bot: Bot }) {
           <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border px-4">
             <span className="text-muted-foreground text-sm">New chat</span>
             {bot.profile === "ops-agent" ? (
-              <div className="w-auto shrink-0 [&_button]:w-auto">
+              <div className="w-auto shrink-0 [&_button]:w-auto" title="Dùng khi cần dán mã thủ công">
                 <OpsAgentConfirmCard />
               </div>
             ) : null}
@@ -135,6 +146,7 @@ export function Chat({ bot }: { bot: Bot }) {
                 Welcome,
                 EmptySuggestions,
                 ThinkingIndicator: Thinking,
+                ...(bot.profile === "ops-agent" ? { AssistantText: OpsAgentAssistantText } : {}),
               }}
             />
           </div>
