@@ -135,8 +135,9 @@ export function OpsAgentInlineCard({ token }: { token: string }) {
   };
 
   const pending = card?.status === "pending";
-  const canConfirm =
-    pending && (card.confirmations ?? []).every((c) => !c.key || ticked[c.key]);
+  const requiredKeys = (card?.confirmations ?? []).map((c) => c.key).filter((k): k is string => !!k);
+  const missingTicks = requiredKeys.filter((k) => !ticked[k]);
+  const canConfirm = pending && missingTicks.length === 0;
 
   return (
     <div
@@ -234,17 +235,22 @@ export function OpsAgentInlineCard({ token }: { token: string }) {
       </div>
 
       {pending ? (
-        <div className="flex flex-col-reverse gap-2 border-t border-border bg-muted/30 p-3 sm:flex-row sm:justify-end">
-          <Button variant="outline" className="min-h-10 sm:min-w-24" onClick={() => void cancel()} disabled={busy !== null}>
-            {busy === "cancel" ? "Đang huỷ…" : "Huỷ"}
-          </Button>
-          <Button
-            className="min-h-10 font-semibold sm:min-w-36"
-            onClick={() => void confirm()}
-            disabled={busy !== null || !canConfirm}
-          >
-            {busy === "confirm" ? "Đang xác nhận…" : "Xác nhận"}
-          </Button>
+        <div className="space-y-2 border-t border-border bg-muted/30 p-3">
+          {missingTicks.length > 0 ? (
+            <p className="text-muted-foreground text-xs">Tick đủ ô xác nhận phía trên rồi mới bấm Xác nhận.</p>
+          ) : null}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" className="min-h-10 sm:min-w-24" onClick={() => void cancel()} disabled={busy !== null}>
+              {busy === "cancel" ? "Đang huỷ…" : "Huỷ"}
+            </Button>
+            <Button
+              className="min-h-10 font-semibold sm:min-w-36"
+              onClick={() => void confirm()}
+              disabled={busy !== null || !canConfirm}
+            >
+              {busy === "confirm" ? "Đang xác nhận…" : "Xác nhận"}
+            </Button>
+          </div>
         </div>
       ) : null}
     </div>
