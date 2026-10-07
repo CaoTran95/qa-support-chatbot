@@ -37,6 +37,18 @@ export const BOTS: Bot[] = [
       "Quy trình mở lại quyết định khiếu nại gồm những bước nào?",
     ],
   },
+  {
+    profile: "ops-agent",
+    label: "Ops Agent",
+    emptyText: "Trợ lý vận hành thống nhất. Điều tra đơn/khiếu nại, tạo thẻ xem trước; bạn xác nhận trên bidu-admin.",
+    placeholder: "Nhập số đơn, mã khiếu nại hoặc câu hỏi cho Ops Agent…",
+    typing: "Ops Agent đang trả lời…",
+    suggestions: [
+      "Bạn hỗ trợ được những việc vận hành nào?",
+      "Giúp tôi kiểm tra đơn bị Viettel Post huỷ.",
+      "Giúp tôi mở lại khiếu nại bị Admin từ chối nhầm.",
+    ],
+  },
 ];
 
 export const DEFAULT_BOT = BOTS[0];
