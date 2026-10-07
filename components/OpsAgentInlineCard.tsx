@@ -104,7 +104,15 @@ export function OpsAgentInlineCard({ token }: { token: string }) {
         if (payload?.status) setCard((prev) => ({ ...prev, ...payload }));
         return;
       }
-      setCard((data.data ?? data) as CardData);
+      const next = (data.data ?? data) as CardData;
+      setCard(next);
+      // BE có thể HTTP 200 nhưng status failed (vd. action_type_unavailable trên staging).
+      if (next.status === "failed" || next.status === "rejected_on_recheck") {
+        setError(
+          [next.result_code ? `[${next.result_code}]` : null, next.result_message].filter(Boolean).join(" ") ||
+            "Xác nhận thất bại",
+        );
+      }
     } catch {
       setError("Lỗi mạng. Thử lại.");
     } finally {
