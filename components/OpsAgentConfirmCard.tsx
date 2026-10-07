@@ -3,6 +3,15 @@
 import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { AUTH_REQUIRED_EVENT } from "@/components/AdminAuthBar";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +38,7 @@ function errMessage(data: Record<string, unknown>, fallback: string): string {
 }
 
 export function OpsAgentConfirmCard() {
+  const [open, setOpen] = useState(false);
   const [token, setToken] = useState("");
   const [card, setCard] = useState<CardData | null>(null);
   const [ticked, setTicked] = useState<Record<string, boolean>>({});
@@ -136,112 +146,166 @@ export function OpsAgentConfirmCard() {
   };
 
   const pending = card?.status === "pending";
-  const done = card && !pending;
+  const canConfirm =
+    pending && (card.confirmations ?? []).every((c) => !c.key || ticked[c.key]);
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-background/60 p-2.5 text-sm">
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-medium tracking-tight">Ops Agent — thẻ xác nhận</span>
-        {card?.status ? (
-          <span
-            className={cn(
-              "rounded px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide",
-              pending ? "bg-amber-500/15 text-amber-700 dark:text-amber-400" : "bg-muted text-muted-foreground",
-            )}
-          >
-            {card.status}
-          </span>
-        ) : null}
-      </div>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button size="sm" variant="secondary" className="w-full justify-center font-medium" />
+        }
+      >
+        Mở thẻ xác nhận
+      </DialogTrigger>
 
-      <Input
-        value={token}
-        onChange={(e) => setToken(e.target.value)}
-        placeholder="Dán mã xem trước (64 hex)"
-        spellCheck={false}
-        className="font-mono text-xs"
-      />
+      <DialogContent
+        className="flex max-h-[min(90dvh,640px)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
+        showCloseButton
+      >
+        <DialogHeader className="shrink-0 space-y-1 border-b border-border px-4 py-3 pr-12">
+          <DialogTitle>Thẻ xác nhận Ops Agent</DialogTitle>
+          <DialogDescription>
+            Dán mã xem trước từ chat, mở thẻ, rồi bấm Xác nhận hoặc Huỷ.
+          </DialogDescription>
+        </DialogHeader>
 
-      <Button size="sm" onClick={lookup} disabled={!token.trim() || busy !== null}>
-        {busy === "lookup" ? "Đang mở…" : "Mở thẻ"}
-      </Button>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+          <div className="flex gap-2">
+            <Input
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="Mã xem trước (64 hex)"
+              spellCheck={false}
+              className="font-mono text-xs"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && token.trim() && !busy) void lookup();
+              }}
+            />
+            <Button size="sm" onClick={lookup} disabled={!token.trim() || busy !== null} className="shrink-0">
+              {busy === "lookup" ? "…" : "Mở thẻ"}
+            </Button>
+          </div>
 
-      {error ? <p className="text-destructive text-xs leading-snug">{error}</p> : null}
+          {error ? <p className="text-destructive text-sm leading-snug">{error}</p> : null}
 
-      {card ? (
-        <div className="flex flex-col gap-2 border-t border-border pt-2">
-          {card.summary ? <p className="text-foreground leading-snug">{card.summary}</p> : null}
-          {card.action_type ? (
-            <p className="text-muted-foreground text-xs">
-              {card.action_type}
-              {card.expires_at ? ` · hết hạn ${new Date(card.expires_at).toLocaleString("vi-VN")}` : ""}
-            </p>
-          ) : null}
+          {card ? (
+            <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-foreground text-sm leading-snug font-medium">{card.summary}</p>
+                {card.status ? (
+                  <span
+                    className={cn(
+                      "shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+                      pending
+                        ? "bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {card.status}
+                  </span>
+                ) : null}
+              </div>
 
-          {(card.checks?.length ?? 0) > 0 ? (
-            <ul className="space-y-1 text-xs">
-              {card.checks!.map((c, i) => (
-                <li key={i} className="flex gap-1.5 leading-snug">
-                  <span className={c.ok ? "text-emerald-600" : "text-destructive"}>{c.ok ? "✓" : "✗"}</span>
-                  <span>{c.label}</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+              {card.action_type ? (
+                <p className="text-muted-foreground text-xs">
+                  {card.action_type}
+                  {card.expires_at ? ` · hết hạn ${new Date(card.expires_at).toLocaleString("vi-VN")}` : ""}
+                </p>
+              ) : null}
 
-          {(card.changes?.length ?? 0) > 0 ? (
-            <ul className="text-muted-foreground space-y-1 text-xs">
-              {card.changes!.map((c, i) => (
-                <li key={i}>
-                  <span className="text-foreground">{c.field}</span>: {c.from} → {c.to}
-                </li>
-              ))}
-            </ul>
-          ) : null}
+              {(card.checks?.length ?? 0) > 0 ? (
+                <ul className="space-y-1.5 text-sm">
+                  {card.checks!.map((c, i) => (
+                    <li key={i} className="flex gap-2 leading-snug">
+                      <span className={c.ok ? "text-emerald-600" : "text-destructive"}>{c.ok ? "✓" : "✗"}</span>
+                      <span>{c.label}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
 
-          {pending && (card.confirmations?.length ?? 0) > 0 ? (
-            <div className="flex flex-col gap-1.5">
-              {card.confirmations!.map((c) =>
-                c.key ? (
-                  <label key={c.key} className="flex cursor-pointer items-start gap-2 text-xs leading-snug">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5"
-                      checked={!!ticked[c.key]}
-                      onChange={(e) => setTicked((prev) => ({ ...prev, [c.key!]: e.target.checked }))}
-                    />
-                    <span>{c.label ?? c.key}</span>
-                  </label>
-                ) : null,
-              )}
+              {(card.changes?.length ?? 0) > 0 ? (
+                <ul className="text-muted-foreground space-y-1 text-xs">
+                  {card.changes!.map((c, i) => (
+                    <li key={i}>
+                      <span className="text-foreground">{c.field}</span>: {c.from} → {c.to}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              {pending && (card.confirmations?.length ?? 0) > 0 ? (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <p className="text-xs font-medium">Xác nhận trước khi duyệt</p>
+                  {card.confirmations!.map((c) =>
+                    c.key ? (
+                      <label
+                        key={c.key}
+                        className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border bg-background px-2.5 py-2 text-sm leading-snug"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-1 size-4 accent-primary"
+                          checked={!!ticked[c.key]}
+                          onChange={(e) => setTicked((prev) => ({ ...prev, [c.key!]: e.target.checked }))}
+                        />
+                        <span>{c.label ?? c.key}</span>
+                      </label>
+                    ) : null,
+                  )}
+                </div>
+              ) : null}
+
+              {card.result_message ? (
+                <p className="text-sm leading-snug">
+                  {card.result_code ? <span className="text-muted-foreground">[{card.result_code}] </span> : null}
+                  {card.result_message}
+                </p>
+              ) : null}
             </div>
-          ) : null}
+          ) : (
+            <p className="text-muted-foreground text-sm">Chưa có thẻ. Dán mã rồi bấm Mở thẻ.</p>
+          )}
+        </div>
 
-          {card.result_message ? (
-            <p className="text-xs leading-snug">
-              {card.result_code ? <span className="text-muted-foreground">[{card.result_code}] </span> : null}
-              {card.result_message}
-            </p>
-          ) : null}
-
+        <DialogFooter className="shrink-0 sm:justify-between">
           {pending ? (
-            <div className="flex gap-2">
-              <Button size="sm" onClick={confirm} disabled={busy !== null} className="flex-1">
+            <>
+              <Button
+                variant="outline"
+                onClick={cancel}
+                disabled={busy !== null}
+                className="min-h-10 w-full sm:w-auto"
+              >
+                {busy === "cancel" ? "Đang huỷ…" : "Huỷ thẻ"}
+              </Button>
+              <Button
+                onClick={confirm}
+                disabled={busy !== null || !canConfirm}
+                className="min-h-10 w-full font-semibold sm:min-w-40 sm:flex-1"
+              >
                 {busy === "confirm" ? "Đang xác nhận…" : "Xác nhận"}
               </Button>
-              <Button size="sm" variant="outline" onClick={cancel} disabled={busy !== null}>
-                {busy === "cancel" ? "…" : "Huỷ"}
-              </Button>
-            </div>
-          ) : null}
-
-          {done ? (
-            <Button size="sm" variant="ghost" onClick={resetCard}>
-              Xóa thẻ
+            </>
+          ) : card ? (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                resetCard();
+                setError(null);
+              }}
+              className="min-h-10 w-full"
+            >
+              Xóa thẻ / mở mã khác
             </Button>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+          ) : (
+            <p className="text-muted-foreground w-full text-center text-xs sm:text-left">
+              Nút Xác nhận hiện sau khi mở thẻ còn hạn (pending).
+            </p>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -118,12 +118,16 @@ export function Chat({ bot }: { bot: Bot }) {
             <HermesStatus key={bot.profile} profile={bot.profile} />
             <AdminAuthBar />
             <SeedAuthBar />
-            {bot.profile === "ops-agent" ? <OpsAgentConfirmCard /> : null}
           </div>
         </aside>
         <main className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
+          <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border px-4">
             <span className="text-muted-foreground text-sm">New chat</span>
+            {bot.profile === "ops-agent" ? (
+              <div className="w-auto shrink-0 [&_button]:w-auto">
+                <OpsAgentConfirmCard />
+              </div>
+            ) : null}
           </header>
           <div className="min-h-0 flex-1">
             <Thread
