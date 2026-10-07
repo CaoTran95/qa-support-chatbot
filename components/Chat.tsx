@@ -13,6 +13,7 @@ import type { Bot } from "@/lib/hermes/profiles";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { AdminAuthBar, AUTH_REQUIRED_EVENT } from "./AdminAuthBar";
 import { SeedAuthBar, SEED_AUTH_REQUIRED_EVENT } from "./SeedAuthBar";
+import { OpsAgentConfirmCard } from "./OpsAgentConfirmCard";
 import { parseSeedMarker } from "@/lib/admin-auth/seed-marker";
 import { BotSwitcher } from "./BotSwitcher";
 import { HermesStatus } from "./HermesStatus";
@@ -117,6 +118,7 @@ export function Chat({ bot }: { bot: Bot }) {
             <HermesStatus key={bot.profile} profile={bot.profile} />
             <AdminAuthBar />
             <SeedAuthBar />
+            {bot.profile === "ops-agent" ? <OpsAgentConfirmCard /> : null}
           </div>
         </aside>
         <main className="flex min-w-0 flex-1 flex-col">
