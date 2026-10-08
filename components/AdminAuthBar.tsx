@@ -28,6 +28,8 @@ export function AdminAuthBar() {
       if (e.origin === window.location.origin && e.data?.type === "ADMIN_AUTH_SUCCESS") {
         setNeeded(false);
         refresh();
+        // Sync other UI (Ops Agent card) — same as Disconnect path.
+        window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
       }
     };
     const onNeeded = () => setNeeded(true);
