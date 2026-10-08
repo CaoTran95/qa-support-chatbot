@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AUTH_REQUIRED_EVENT } from "@/components/AdminAuthBar";
+import { AUTH_CHANGED_EVENT } from "@/lib/admin-auth/events";
 import { cn } from "@/lib/utils";
 
 type Check = { label?: string; ok?: boolean };
@@ -51,14 +52,18 @@ export function OpsAgentInlineCard({ token }: { token: string }) {
     try {
       const { ok, status, data } = await post("/api/ops-agent/lookup", { preview_token: token });
       if (status === 401 || data.kind === "auth_required") {
+        // Chưa (hoặc mất) cookie Admin — cho phép lookup lại sau khi Connect.
+        loadedFor.current = null;
         window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
-        setError("Connect Admin (cột trái) rồi bấm Thử lại.");
+        setError("Connect Admin (cột trái) — thẻ sẽ tự tải lại sau khi đăng nhập.");
         return;
       }
       if (!ok || data.success === false) {
+        loadedFor.current = null;
         setError(errMessage(data, "Không mở được thẻ"));
         return;
       }
+      loadedFor.current = token;
       const payload = (data.data ?? data) as CardData;
       setCard(payload);
       const next: Record<string, boolean> = {};
@@ -67,6 +72,7 @@ export function OpsAgentInlineCard({ token }: { token: string }) {
       }
       setTicked(next);
     } catch {
+      loadedFor.current = null;
       setError("Lỗi mạng. Thử lại.");
     } finally {
       setBusy(null);
@@ -75,9 +81,26 @@ export function OpsAgentInlineCard({ token }: { token: string }) {
 
   useEffect(() => {
     if (loadedFor.current === token) return;
-    loadedFor.current = token;
     void lookup();
   }, [token, lookup]);
+
+  // Sau Connect Admin / Disconnect: tự lookup lại (tránh kẹt lỗi "chưa kết nối").
+  useEffect(() => {
+    const retry = () => {
+      if (card?.status === "pending" || card?.status === "succeeded") return;
+      loadedFor.current = null;
+      void lookup();
+    };
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin === window.location.origin && e.data?.type === "ADMIN_AUTH_SUCCESS") retry();
+    };
+    window.addEventListener(AUTH_CHANGED_EVENT, retry);
+    window.addEventListener("message", onMsg);
+    return () => {
+      window.removeEventListener(AUTH_CHANGED_EVENT, retry);
+      window.removeEventListener("message", onMsg);
+    };
+  }, [lookup, card?.status]);
 
   const confirm = async () => {
     if (!card) return;
